@@ -38,6 +38,35 @@ void DamageModel::assignLC(double inLC) {
     lc = inLC;
 };
 
+double DamageModel::dval(double phi) {
+    double x = phi/lc;
+    if (x < 0) return 0;
+    if (x > 1) return 1;
+
+    switch (type) {
+    case 0:
+        if (x <= 0.5) {
+            return 2*x*x;
+        } else {
+            return -2*x*x + 4*x - 1;
+        }
+    case 1:
+        return x;
+    case 2:
+        return 2*x-x*x;
+    case 3:
+        return 3*x - 3*x*x + x*x*x;
+    }
+};
+
+double DamageModel::dp() {
+
+};
+
+double DamageModel::dpp() {
+
+};
+
 double DamageModel::getLC() {
     return lc;
 };

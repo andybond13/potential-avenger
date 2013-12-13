@@ -27,6 +27,10 @@ double getLC();
 
 int getType();
 
+double dval(double phi);
+double dp();
+double dpp();
+
 private:
 int type;
 double lc;
