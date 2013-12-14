@@ -4,6 +4,7 @@
 //(c) 2013
 
 #include <damageModel.h>
+#include <math.h>
 
 using namespace std;
 
@@ -29,6 +30,8 @@ void DamageModel::assignType(std::string inType) {
         type = 3;
     } else if (inType.compare("Ess") == 0) {
         type = 0;
+    } else if (inType.compare("SquareRoot") == 0) {
+        type = 4;
     } else {
         assert(1 == 0);
     }
@@ -56,15 +59,60 @@ double DamageModel::dval(double phi) {
         return 2*x-x*x;
     case 3:
         return 3*x - 3*x*x + x*x*x;
+    case 4:
+        return sqrt(x);
     }
 };
 
-double DamageModel::dp() {
+double DamageModel::dp(double phi) {
+    //this function is the derivative of d with respect to phi
+   
+    double x = phi/lc;
+ 
+    if (x < 0) return 0;
+    if (x > 1) return 0;
 
+    switch (type) {
+    case 0:
+        if (x <= 0.5) {
+            return 4*x/lc;
+        } else {
+            return (-4 * x + 4)/lc;
+        }
+    case 1:
+        return 1/lc;
+    case 2:
+        return 2/lc * (1-x);
+    case 3:
+        return 1/lc * (3-6*x+3*x*x);
+    case 4:
+        return 1/lc * 2*x;
+    }
 };
 
-double DamageModel::dpp() {
+double DamageModel::dpp(double phi) {
+    //second derivative of d with respect to phi
+    double x = phi/lc;
 
+    if (x < 0) return 0;
+    if (x > 1) return 0;
+
+    switch (type) {
+    case 0:
+        if (x <= 0.5) {
+            return 4/(lc*lc);
+        } else {
+            return -4/(lc*lc);
+        }
+    case 1:
+        return 0;
+    case 2:
+        return -2/(lc*lc);
+    case 3:
+        return (1/lc)*(1/lc) * 6 * (-1+x);
+    case 4:
+        return (1/lc)*(1/lc)*2;
+    }
 };
 
 double DamageModel::getLC() {
