@@ -13,13 +13,13 @@ class PotentialAvenger{
 
 private:
 //nucleate.m
-void nucleate(double t, std::vector<double>& x, std::vector<double>& phi, std::vector<double>& xnuc, std::vector<double>& phinuc);
+void nucleate(double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc);
 
 //findFragments.m
-void findFragments(std::vector<double>& x, std::vector<double>& phi, std::vector<double>& d, unsigned& nfrags, std::vector<std::pair<unsigned,unsigned> >& fragmentList);
+void findFragments(const std::vector<double>& x, const std::vector<double>& phi, const std::vector<double>& d, unsigned& nfrags, std::vector<std::pair<unsigned,unsigned> >& fragmentList);
 
 //checkFailureCriteria.m
-void checkFailureCriteria(double t, std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, std::string elemOrNodal, std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue);
+void checkFailureCriteria(double t, const std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, std::string elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue);
 
 };
 

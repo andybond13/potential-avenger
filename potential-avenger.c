@@ -13,7 +13,7 @@ using namespace std;
 int main(int argc, const char* argv[]) {
 }
 
-void PotentialAvenger::nucleate(double t, std::vector<double>& x, std::vector<double>& phi, std::vector<double>& xnuc, std::vector<double>& phinuc){
+void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc){
     //t      -time
     //x      -mesh
     //phi    -level-set calculated at this time-step
@@ -46,7 +46,7 @@ void PotentialAvenger::nucleate(double t, std::vector<double>& x, std::vector<do
     }
 };
 
-void PotentialAvenger::findFragments(std::vector<double>& x, std::vector<double>& phi, std::vector<double>& d, unsigned& nfrags, std::vector<std::pair<unsigned,unsigned> >& fragmentList) {
+void PotentialAvenger::findFragments(const std::vector<double>& x, const std::vector<double>& phi, const std::vector<double>& d, unsigned& nfrags, std::vector<std::pair<unsigned,unsigned> >& fragmentList) {
 
 
     fragmentList.clear();
@@ -87,7 +87,7 @@ void PotentialAvenger::findFragments(std::vector<double>& x, std::vector<double>
     }
 };
 
-void PotentialAvenger::checkFailureCriteria(double t, std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, std::string elemOrNodal, std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue){
+void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, const std::string elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue){
 
     //x              -mesh
     //phi            -level-set calculated at this time-step
@@ -153,7 +153,7 @@ void PotentialAvenger::checkFailureCriteria(double t, std::vector<double>& x, st
 
 };
 
-void analyzeDamage(vector<double>& x, vector<double>& phi, double h, vector<vector<unsigned> >& newSegment) {
+void analyzeDamage(const vector<double>& x, vector<double>& phi, const double h, vector<vector<unsigned> >& newSegment) {
 
     //produce:
     //new phi based on distances - maxima
