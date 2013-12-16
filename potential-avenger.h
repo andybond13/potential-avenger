@@ -3,3 +3,21 @@
 //DCML, Duke University
 //(c) 2013
 
+#include <stdio.h>
+#include <vector>
+
+#ifndef POTENTIAL_AVENGER_H
+#define POTENTIAL_AVENGER_H
+
+class PotentialAvenger{
+
+private:
+//nucleate.m
+void nucleate(double t, std::vector<double>& x, std::vector<double>& phi, std::vector<double>& xnuc, std::vector<double>& phinuc);
+
+
+};
+
+
+#endif
+
