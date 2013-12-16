@@ -18,6 +18,9 @@ void nucleate(double t, std::vector<double>& x, std::vector<double>& phi, std::v
 //findFragments.m
 void findFragments(std::vector<double>& x, std::vector<double>& phi, std::vector<double>& d, unsigned& nfrags, std::vector<std::pair<unsigned,unsigned> >& fragmentList);
 
+//checkFailureCriteria.m
+void checkFailureCriteria(double t, std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, std::string elemOrNodal, std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue);
+
 };
 
 
