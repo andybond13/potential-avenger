@@ -11,7 +11,34 @@
 using namespace std;
 
 int main(int argc, const char* argv[]) {
+    assert(argc == 7);
+
+    double strain_rate = atof(argv[1]);
+    double ts_refine = atof(argv[2]);
+    double end_t = atof(argv[3]);
+    unsigned Nelt = atoi(argv[4]);
+    double lc = atof(argv[5]);
+    unsigned intOrder = atoi(argv[6]);
+
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder);
+    pa.run();
 }
+
+PotentialAvenger::PotentialAvenger(double in0, double in1, double in2, unsigned in3, double in4, unsigned in5){
+    strain_rate = in0;
+    ts_refine = in1;
+    end_t = in2;
+    Nelt = in3;
+    lc = in4;
+    intOrder = in5;
+};
+
+PotentialAvenger::~PotentialAvenger(){};
+
+void PotentialAvenger::run() {
+
+    printRunInfo();
+};
 
 void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc){
     //t      -time
@@ -298,4 +325,18 @@ void analyzeDamage(const vector<double>& x, vector<double>& phi, const double h,
         phi[i] = phinew[i];
     }
 };  
+
+void PotentialAvenger::printRunInfo() {
+    cout << endl;
+    cout << "Run Info:" << endl;
+    cout << "Strain rate = " << strain_rate << endl;
+    cout << "# Elements = " << Nelt << endl;
+    cout << "End Time (s) = " << end_t << endl;
+    cout << "Time-step refinement ratio = " << ts_refine << endl;
+    cout << "Damage gradient length (lc) = " << lc << endl;
+    cout << "Integration Order = " << intOrder << endl;
+    cout << "Beginning run... " << endl;
+    cout << endl;
+
+};
 
