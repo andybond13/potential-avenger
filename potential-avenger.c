@@ -146,7 +146,156 @@ void PotentialAvenger::checkFailureCriteria(double t, std::vector<double>& x, st
     }
 
     //nucleate list
-    vector<double> failvalueList = vector<double>(xlist.size(),failvalue);
-    nucleate(t,x,phi,xlist,failvalueList);
+    if (xlist.size() > 0) {
+        vector<double> failvalueList = vector<double>(xlist.size(),failvalue);
+        nucleate(t,x,phi,xlist,failvalueList);
+    }
 
 };
+
+void analyzeDamage(vector<double>& x, vector<double>& phi, double h, vector<vector<unsigned> >& newSegment) {
+
+    //produce:
+    //new phi based on distances - maxima
+
+    vector<vector<unsigned> > segment;
+
+    unsigned sum = 0;
+    for (unsigned i = 0; i < phi.size(); ++i) {
+        if (phi[i] > -1) sum++;
+    }
+    if (sum == 0) return;
+
+    vector<unsigned> list_max;
+    vector<double> value_max;
+
+    for (unsigned i = 0; i < phi.size()-1; ++i) {
+        if ((i > 0) && (i < phi.size()-2)) { //local maxima/minima
+    
+            if ((phi[i] >= phi[i-1]) && (phi[i+1]>=phi[i+2])) {
+                double delta = (phi[i+1]-phi[i] + h)/2;
+                if (phi[i]+delta < 0) {
+                    continue;
+                }
+                list_max.push_back( x[i] + delta);
+                value_max.push_back(phi[i] + delta);
+            }
+        }
+        if ((i == 0) && (phi[0]-phi[1] >= 0)) {
+            list_max.push_back(x[i]);
+            value_max.push_back(phi[i]);
+        }
+        if ((i == phi.size()-2) && phi[i+1]>phi[i]) {
+            list_max.push_back(x[i+1]);
+            value_max.push_back(phi[i+1]);
+        }
+    
+    }
+
+    segment.resize(list_max.size());    
+    assert(x.size() >= 1);
+    if (value_max.size() == list_max.size() && value_max.size() == 0) return;
+
+    vector<double>phinew = vector<double>(phi.size(),-1);
+    for (unsigned i = 0; i < phi.size(); ++i) {
+        
+        double min = 9999999999;
+        for (unsigned k = 0; k < x.size(); ++k) {
+            double qty = -value_max[k] + fabs(x[i] - list_max[k]);
+            if (qty < min) min = qty;
+        }
+        phinew[i] = -min;
+       
+        for (unsigned j = 0; j < list_max.size(); ++j) {
+            if (phinew[i] == -(-value_max[j]+fabs(x[i] -list_max[j]))) {
+                segment[j].push_back(i);
+                break;
+            }
+        }
+        phinew[i] = max(phinew[i],phi[i]);
+    }
+
+    //join segments together if same peak
+    for (unsigned j = 0; j < list_max.size()-1; ++j) {
+        if (fabs(list_max[j]-list_max[j+1]) < h) {
+            segment[j].insert(segment[j].end(),segment[j+1].begin(),segment[j+1].end());
+            segment[j+1].clear();
+//            segment[j] = sort(segment[j]);//TODO turned off
+        }
+    }
+
+
+    //new
+    //split hat segments into two
+    newSegment.clear();
+    vector<unsigned> list_maxnew;
+    vector<double> value_maxnew;
+    for (unsigned i = 0; i < segment.size(); ++i) {
+        vector<unsigned> indices = segment[i];
+        if (indices.size() == 0) continue; //don't copy empty's
+        if (indices.size() == 1) {
+            //solo point - copy as is
+            list_maxnew.push_back(list_max[i]);
+            value_maxnew.push_back(value_max[i]);
+            newSegment.push_back(segment[i]);
+            continue;
+        }
+   
+        assert(indices.size() > 1);
+        if ((phinew[indices[0]] < phinew[indices[1]]) && (phinew[*indices.end()] < phinew[*(indices.end()-1)] )) {
+            //hat - duplicate
+            list_maxnew.push_back(list_max[i]);
+            list_maxnew.push_back(list_max[i]);
+            value_maxnew.push_back(value_max[i]);
+            value_maxnew.push_back(value_max[i]);
+
+            int iphimax = -1;
+            double phimax = -1;
+            for (vector<unsigned>::iterator j = indices.begin() ; j != indices.end(); ++j) {
+                if (phi[*j] > phimax) {
+                    phimax = phi[*j];
+                    iphimax = *j;
+                }
+            }
+            assert(iphimax != -1);
+
+            vector<unsigned> vec1;
+            vector<unsigned> vec2;
+            for (vector<unsigned>::iterator j = indices.begin() ; j != indices.end(); ++j) {
+                if (*j <= iphimax) vec1.push_back(*j);
+                else vec2.push_back(*j);
+            }
+            newSegment.push_back(vec1);
+            newSegment.push_back(vec2);
+
+        } else if ((phinew[indices[0]] >= phinew[indices[1]]) && (phinew[*indices.end()] < phinew[*(indices.end()-1)] )) {
+            //not hat - copy as is
+            list_maxnew.push_back(list_max[i]);
+            value_maxnew.push_back(value_max[i]);
+            newSegment.push_back(segment[i]);
+        } else if ((phinew[indices[0]] <= phinew[indices[1]]) && (phinew[*indices.end()] >= phinew[*(indices.end()-1)] )) {
+            //not hat - copy as is
+            list_maxnew.push_back(list_max[i]);
+            value_maxnew.push_back(value_max[i]);
+            newSegment.push_back(segment[i]);       
+        } else {
+            //[list_max;value_max]
+            //[indices;x[indices];phinew[indices]]
+            //plot(x[indices],phinew[indices])
+            assert(1==0);
+        }
+    }
+    
+    for (unsigned i = 0; i < newSegment.size(); ++i) {
+        vector<unsigned> indices = newSegment[i];
+        for (vector<unsigned>::iterator j = indices.begin() ; j != indices.end(); ++j) {
+            phinew[*j] = value_maxnew[i]-fabs(x[*j] -list_maxnew[i]);
+        }
+    }
+
+    //return phinew as phi
+    for (unsigned i = 0; i < phi.size(); ++i) {
+        phi[i] = phinew[i];
+    }
+};  
+
