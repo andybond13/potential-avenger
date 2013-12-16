@@ -45,8 +45,43 @@ void PotentialAvenger::nucleate(double t, std::vector<double>& x, std::vector<do
     }
 };
 
+void PotentialAvenger::findFragments(std::vector<double>& x, std::vector<double>& phi, std::vector<double>& d, unsigned& nfrags, std::vector<std::pair<unsigned,unsigned> >& fragmentList) {
 
 
+    fragmentList.clear();
+    unsigned sbegin = 0;
+    unsigned send = 0;
 
+    for (unsigned i = 0; i < x.size() - 1; ++i) {
 
+        if (sbegin == 0) {
+            if (i == 1) {
+                sbegin = i;
+            }
+        }
+    
+        if (send == 0) {
+            if (i == x.size()-2) {
+                send = i+1;
+            }
+            if ((i > 0) && (i < x.size()-1)) {
+                if (phi[i] >= phi[i-1] && phi[i] >= phi[i+1] && d[i] == 1) {
+                    send = i;
+                }
+            }
+        }
+    
+        if (sbegin*send != 0) {
+            pair<unsigned,unsigned> list = std::pair<unsigned,unsigned>(sbegin,send);
+            fragmentList.push_back(list);
+            sbegin = send + 1;
+            send = 0;
+        }
+    }
 
+    //calculate total number of fragments (removing symmetry simplification)
+    nfrags = fragmentList.size()*2;
+    if (d[0] < 1.0) {
+        nfrags = nfrags - 1;
+    }
+};
