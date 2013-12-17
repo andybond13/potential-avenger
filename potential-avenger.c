@@ -82,7 +82,7 @@ void PotentialAvenger::run() {
     double A = 1; // barre de 10cm sur 10cm
     double c = sqrt(E/rho);
     double L = 1;
-    double h = 1/Nelt; //
+    double h = 1/static_cast<double>(Nelt); //
     double cfl = 1./ts_refine;
     double dt = cfl * h/c;//
     double Yc = E/10;
@@ -108,12 +108,12 @@ void PotentialAvenger::run() {
 
     //Matrix bpos = Matrix(Ntim, Nelt);
     //Matrix grad = Matrix(Ntim, Nelt);
-    Matrix u = Matrix(Ntim, Nelt);
-    Matrix ustat = Matrix(Ntim, Nelt);
-    Matrix Ystat = Matrix(Ntim, Nelt);
-    Matrix v = Matrix(Ntim, Nelt);
-    Matrix a = Matrix(Ntim, Nelt);
-    Matrix phi = Matrix(Ntim, Nelt);
+    Matrix u = Matrix(Ntim, Nnod);
+    Matrix ustat = Matrix(Ntim, Nnod);
+    Matrix Ystat = Matrix(Ntim, Nnod);
+    Matrix v = Matrix(Ntim, Nnod);
+    Matrix a = Matrix(Ntim, Nnod);
+    Matrix phi = Matrix(Ntim, Nnod);
     Matrix YmYc = Matrix(Ntim, Nelt);
 
     Matrix phidot = Matrix(Ntim,0);
@@ -200,19 +200,20 @@ void PotentialAvenger::run() {
     }
     phidot.row(0).resize(len);
 
+    //time-integration loop
     for (unsigned i = 1; i < Ntim; ++i){
         //prediction
         for (unsigned j = 0; j < Nnod; ++j) {
             v(i,j)= v(i-1,j) + 0.5*dt*a(i-1,j);
             u(i,j)= u(i-1,j) + dt*v(i-1,j) + 0.5*dt*dt*a(i-1,j);
         }
-    
+
         //def computation and Y update.
         for (unsigned j = 0; j < Nelt; ++j) {
             e(i,j) = (u(i,j+1)-u(i,j))/(h);
             //b=0.5*E*e(i,j)*e(i,j)-Yc;
         }
-    
+
         // moving the localization front
         // we compute a = integral (Yn+1 - Yc) d' in the current non-local zone
         // then we compute b = (Yn+1-Yc) d' on the front
@@ -221,7 +222,7 @@ void PotentialAvenger::run() {
         for (unsigned j = 0; j < Nnod; ++j) {
             phi(i,j) = phi(i-1,j);
         }
-    
+
         for (unsigned l = 0; l < segments.size(); ++l) {
             if (segments[l].size()==0) continue;
 
@@ -236,6 +237,7 @@ void PotentialAvenger::run() {
                     break;
                 }
             }
+cout  << allNeg << endl;
             if (allNeg) continue;
         
             double err_crit = 1e15;
@@ -243,7 +245,6 @@ void PotentialAvenger::run() {
             nbiter[i] = 0;
             double residu = 0;
             while (err_crit > 1.e-6) {
-
                 nbiter[i]++;
                 double residu_Y = 0; double tangent_Y = 0;
                 unsigned loop_residu = 0;
@@ -287,7 +288,7 @@ void PotentialAvenger::run() {
                 if (1) {
                     bool flag = true; //0 is exterior (damage centered on edge of domain); 1 is interior
                     if (l == 1 && phi(i,0) > phi(i,1)) flag = false;
-                    if (l == segments.size() && phi(i,phi.nCols()-1) > phi(i,phi.nCols()-2)) flag = false;
+                    if (l == segments.size() && phi(i,phi.nCols(i)-1) > phi(i,phi.nCols(i)-2)) flag = false;
 
                     
                     double phimax = phi(i,sbegin);
@@ -325,7 +326,7 @@ void PotentialAvenger::run() {
                     dphi = 0;
                     assert(1==0);                
                 }
-            
+
                 for (unsigned j = sbegin; j <=send; ++j) {
                     if (i > 6 && intOrder >= 6) {
                         vector<double> w;
@@ -377,28 +378,35 @@ void PotentialAvenger::run() {
             err_crit = 0.0;
 
         } //for segments
-    
+
         //check for nucleation
         vector<double> Yin;
-        for (unsigned l = 0; l < Nelt; ++l) Yin.push_back(0.5*E*e(i,l)*e(i,l));
+        for (unsigned l = 0; l < Nelt; ++l)  Yin.push_back(0.5*E*e(i,l)*e(i,l));
         vector<double> YcVec(1,Yc);
         string elemOrNodal="elem";
         checkFailureCriteria(t[i],x,phi.row(i),YcVec,elemOrNodal,Yin,false,false,2*h);
-        
+
         //enforce phi constraints
         vector<vector<unsigned> > segments;
         analyzeDamage(x,phi.row(i),h,segments);
-   
         for (unsigned l = 0; l < segments.size(); ++l) {
             if (segments[l].size() == 0) continue;
             //median(segments[l]);
-            unsigned smid = floor(median(segments[l]));
+            unsigned smid = median(segments[l]);
+
+            len = 0;
+            for (unsigned j = 0; j < segments.size(); ++j) {
+                if (segments[j].size() == 0) continue;
+                len++;
+            }
+            phidot.resizeRow(i,len);
+
             phidot(i,l) = (phi(i,smid) - phi(i-1,smid))/dt;
             if (phidot(i,l)*dt > h*1.01 ) {
                 printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t[i],l,phidot(i,l)*dt/h);
             }
         }
-        
+
         //updating the stress
         for (unsigned j = 0; j < Nelt; ++j) {
             vector<double> dlocg(2,0);
@@ -472,7 +480,7 @@ void PotentialAvenger::run() {
 
     double minfrag = L*2;
     double sumfrag = 0;
-    cout << "nfrags = " << nfrags[Ntim] << endl;
+
     for (unsigned i = 0; i < nfrags[Ntim-1]/2; ++i) {
         
         double fragLen = (fragment_list[i].second-fragment_list[i].first)*h;
@@ -501,10 +509,10 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
 
     assert(xnuc.size() == phinuc.size());
     assert(xnuc.size() > 0);
-    
+cout << "enter nucleation" << endl;    
     for (unsigned j = 0; j < xnuc.size(); ++j) {
         double h = 0;
-        unsigned loc = 0;
+        unsigned loc = -1;
         double delta = 0;
         
         for (unsigned i = 0; i < x.size()-1; ++i) {
@@ -517,11 +525,11 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
 
         }
     
-        assert(loc != 0);
+        assert(loc != -1);
     
         *phi[loc] = phinuc[j] - delta*h;
         *phi[loc+1] = phinuc[j] - (1-delta)*h;
-        printf("crack nucleated, t = %f, x = %f",t,xnuc[j]);
+        printf("crack nucleated, t = %f, x = %f \n",t,xnuc[j]);
     }
 };
 
@@ -585,36 +593,29 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
     } else {
         assert(x.size() == qty.size()+1);
     }
-
     assert((qty.size() == criterion.size()) || (criterion.size() == 1));
 
     if (criterion.size() == 1) {
         double val = criterion[0];
         criterion.assign(qty.size(),val);
     }
-    
     vector<double> xlist;
-    
     for (unsigned i = 0; i < qty.size(); ++i) {
-
         if (phiPos == 0) {//can't fail if phi>0
             if (elemOrNodal.compare("nodal") == 0) {
-                if (phi[i] > 0) {
-                    continue;
-                }
+                if (*phi[i] > 0) continue;
             } else {
-                if (phi[i]>0 || phi[i+1]>0) {
-                    continue;
-                }
+                if (*phi[i]>0 || *phi[i+1]>0) continue;
             }
         }
-    
         double qtyc = qty[i];
 
         if (absOrAsIs) {
             qtyc = fabs(qtyc);
         }
+
         if (qtyc > criterion[i]) {
+
             if (elemOrNodal.compare("nodal") == 0) {
                 xlist.push_back(x[i]);
             } else {
@@ -623,13 +624,11 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
             }
         }
     }
-
     //nucleate list
     if (xlist.size() > 0) {
         vector<double> failvalueList = vector<double>(xlist.size(),failvalue);
         nucleate(t,x,phi,xlist,failvalueList);
     }
-
 };
 
 void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double*> phi, const double h, vector<vector<unsigned> >& newSegment) {
@@ -721,7 +720,9 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double*> ph
         }
    
         assert(indices.size() > 1);
-        if ((phinew[indices[0]] < phinew[indices[1]]) && (phinew[*indices.end()] < phinew[*(indices.end()-1)] )) {
+        unsigned iend = indices[indices.size()-1];
+        unsigned iend1 = indices[indices.size()-2];
+        if ((phinew[indices[0]] < phinew[indices[1]]) && (phinew[iend] < phinew[iend1] )) {
             //hat - duplicate
             list_maxnew.push_back(list_max[i]);
             list_maxnew.push_back(list_max[i]);
@@ -747,17 +748,21 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double*> ph
             newSegment.push_back(vec1);
             newSegment.push_back(vec2);
 
-        } else if ((phinew[indices[0]] >= phinew[indices[1]]) && (phinew[*indices.end()] < phinew[*(indices.end()-1)] )) {
+        } else if ((phinew[indices[0]] >= phinew[indices[1]]) && (phinew[iend] <= phinew[iend1] )) { //TODO changed right to <=
             //not hat - copy as is
             list_maxnew.push_back(list_max[i]);
             value_maxnew.push_back(value_max[i]);
             newSegment.push_back(segment[i]);
-        } else if ((phinew[indices[0]] <= phinew[indices[1]]) && (phinew[*indices.end()] >= phinew[*(indices.end()-1)] )) {
+        } else if ((phinew[indices[0]] <= phinew[indices[1]]) && (phinew[iend] >= phinew[iend1] )) {
             //not hat - copy as is
             list_maxnew.push_back(list_max[i]);
             value_maxnew.push_back(value_max[i]);
             newSegment.push_back(segment[i]);       
         } else {
+for (unsigned j = 0; j < indices.size(); ++j) cout << indices[j] <<" , " <<  phinew[indices[j]] << endl;
+cout << (phinew[indices[0]] <= phinew[indices[1]]);
+cout << phinew[indices[0]]-phinew[indices[1]] << endl;
+cout << (phinew[iend1] <= phinew[iend]) << endl;
             //[list_max;value_max]
             //[indices;x[indices];phinew[indices]]
             //plot(x[indices],phinew[indices])
