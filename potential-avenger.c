@@ -806,93 +806,10 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double*> ph
         phinew[i] = -min;
         
         newSegment[segphimin].indices.push_back(i);
-        /*for (unsigned j = 0; j < list_max.size(); ++j) {
-            if (phinew[i] == -(-value_max[j]+fabs(x[i] -list_max[j]))) {
-                newSegment[j].indices.push_back(i);
-                break;
-            }
-        }*/
+
         phinew[i] = max(phinew[i],*phi[i]);
     }
-/*
-    //join segments together if same peak
-    for (unsigned j = 0; j < list_max.size()-1; ++j) {
-        if (fabs(list_max[j]-list_max[j+1]) < h) {
-            segment[j].indices.insert(segment[j].indices.end(),segment[j+1].indices.begin(),segment[j+1].indices.end());
-            segment.erase(segment.begin()+j+1);
-        }
-    }
-*/
-/*
-    //new
-    //split hat segments into two
-    newSegment.clear();
-    vector<unsigned> list_maxnew;
-    vector<double> value_maxnew;
-    for (unsigned i = 0; i < segment.size(); ++i) {
-        Segment seg = segment[i];
-        if (seg.size() == 0) continue; //don't copy empty's
-        if (seg.size() == 1) {
-            //solo point - copy as is
-            list_maxnew.push_back(list_max[i]);
-            value_maxnew.push_back(value_max[i]);
-            newSegment.push_back(segment[i]);
-            continue;
-        }
-   
-        assert(seg.size() > 1);
-        unsigned iend = seg.end();
-        unsigned iend1 = seg.penult();
-        if ((phinew[seg.begin()] < phinew[seg.second()]) && (phinew[iend] < phinew[iend1] )) {
-            //hat - duplicate
-            int iphimax = -1;
-            double phimax = -1;
-            for (vector<unsigned>::iterator j = seg.indices.begin() ; j != seg.indices.end(); ++j) {
-                if (*phi[*j] > phimax) {
-                    phimax = *phi[*j];
-                    iphimax = *j;
-                }
-            }
-            assert(iphimax != -1);
 
-            Segment vec1;
-            Segment vec2;
-            for (vector<unsigned>::iterator j = seg.indices.begin() ; j != seg.indices.end(); ++j) {
-                if (*j <= iphimax) vec1.indices.push_back(*j);
-                else vec2.indices.push_back(*j);
-            }
-            vec1.xpeak = list_max[i];
-            vec1.phipeak = value_max[i];
-            vec1.slope = -1;
-            vec2.xpeak = list_max[i];
-            vec2.phipeak = value_max[i];
-            vec2.slope = 1;
-
-            newSegment.push_back(vec1);
-            newSegment.push_back(vec2);
-
-        } else if ((phinew[seg.begin()] >= phinew[seg.second()]) && (phinew[iend] <= phinew[iend1] )) { //TODO changed right to <=
-            //not hat - copy as is
-            list_maxnew.push_back(list_max[i]);
-            value_maxnew.push_back(value_max[i]);
-            newSegment.push_back(segment[i]);
-        } else if ((phinew[seg.begin()] <= phinew[seg.second()]) && (phinew[iend] >= phinew[iend1] )) {
-            //not hat - copy as is
-            list_maxnew.push_back(list_max[i]);
-            value_maxnew.push_back(value_max[i]);
-            newSegment.push_back(segment[i]);       
-        } else {
-for (unsigned j = 0; j < seg.size(); ++j) cout << seg.indices[j] <<" , " <<  phinew[seg.indices[j]] << endl;
-cout << (phinew[seg.begin()] <= phinew[seg.second()]);
-cout << phinew[seg.begin()]-phinew[seg.second()] << endl;
-cout << (phinew[iend1] <= phinew[iend]) << endl;
-            //[list_max;value_max]
-            //[indices;x[indices];phinew[indices]]
-            //plot(x[indices],phinew[indices])
-            assert(1==0);
-        }
-    }
-    */
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
         Segment seg = newSegment[i];
