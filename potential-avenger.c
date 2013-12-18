@@ -11,7 +11,7 @@
 using namespace std;
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 7);
+    assert(argc == 8);
 
     double strain_rate = atof(argv[1]);
     double ts_refine = atof(argv[2]);
@@ -19,18 +19,20 @@ int main(int argc, const char* argv[]) {
     unsigned Nelt = atoi(argv[4]);
     double lc = atof(argv[5]);
     unsigned intOrder = atoi(argv[6]);
+    unsigned printVTK = atoi(argv[7]);
 
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK);
     pa.run();
 }
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
     Nelt = in3;
     lc = in4;
     intOrder = in5;
+    printVTK = in6;
 };
 
 PotentialAvenger::~PotentialAvenger(){};
@@ -457,13 +459,15 @@ void PotentialAvenger::run() {
         findFragments(dm, segments,phirow,nfrags[i],fragment_list);
 
         //print to vtk
-        vector<double> uvec = u.rowC(i);
-        vector<double> vvec = v.rowC(i);
-        vector<double> phivec = phi.rowC(i);
-        vector<double> dvec = d.rowC(i);
-        vector<double> evec = e.rowC(i);
-        vector<double> svec = s.rowC(i);
-        printToFile(i,x,uvec,vvec,phivec,dvec,svec,evec,Yc);   
+        if (printVTK) {
+            vector<double> uvec = u.rowC(i);
+            vector<double> vvec = v.rowC(i);
+            vector<double> phivec = phi.rowC(i);
+            vector<double> dvec = d.rowC(i);
+            vector<double> evec = e.rowC(i);
+            vector<double> svec = s.rowC(i);
+            printToFile(i,x,uvec,vvec,phivec,dvec,svec,evec,Yc);   
+        }
     }//end time-loop
 
     for (unsigned i = 0; i < Ntim; ++i) {

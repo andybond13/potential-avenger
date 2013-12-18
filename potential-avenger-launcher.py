@@ -1,6 +1,10 @@
 #!/usr/bin/python
 import os
 
+#clear results
+command = "rm *.vtk"
+os.system(command)
+
 #define input arguments
 ts_refine = 2
 end_t = 2

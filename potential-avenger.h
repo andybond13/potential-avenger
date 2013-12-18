@@ -17,7 +17,7 @@ public:
 //dyndimresttls.m
 void run();
 
-PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5);
+PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6);
 ~PotentialAvenger();
 
 
@@ -28,6 +28,7 @@ double end_t;
 unsigned Nelt;
 double lc;
 unsigned intOrder;
+unsigned printVTK;
 
 void printRunInfo();
 void printToFile(unsigned t, std::vector<double>& x, std::vector<double>& u, std::vector<double>& v, std::vector<double>& phi, std::vector<double>& d, std::vector<double>& s, std::vector<double>& e, double& Yc);
