@@ -44,7 +44,6 @@ DamageModel dm;
 std::vector<Fragment> fragment_list;
 
 void printRunInfo();
-//void printToFile(unsigned t, std::vector<double>& x, std::vector<double>& u, std::vector<double>& v, std::vector<double>& phi, std::vector<double>& d, std::vector<double>& s, std::vector<double>& e, double& Yc);
 
 //nucleate.m
 void nucleate(double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment>& newSegment);
