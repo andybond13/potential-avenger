@@ -1179,5 +1179,8 @@ void PotentialAvenger::printClean () const {
     //int status = system( shellCmd.c_str() );
 	system( shellCmd.c_str() );
 
+    shellCmd = "./" + cleanPath;
+	system( shellCmd.c_str() );
+
 }
 
