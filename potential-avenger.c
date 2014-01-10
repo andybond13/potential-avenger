@@ -575,7 +575,7 @@ void PotentialAvenger::calculateEnergies(const unsigned& i) {
     for (unsigned j = 0; j < Nelt; ++j) Ystat[j] = 0.5 * E * pow((ustat[j+1] - ustat[j])/h,2);
     dissip_energy += dissip;
     strain_energy = sum (energy);
-    if (i > 0) ext_energy += (a[Nnod-1] * m[Nnod-1] + s[Nnod-2]) * v[Nnod-1] * dt;
+    if (i > 0) ext_energy += (a[Nnod-1] * m[Nnod-1] + s[Nnod-2] * A) * v[Nnod-1] * dt;
     else ext_energy = dissip + strain_energy + kinetic_energy;
     tot_energy = strain_energy + kinetic_energy + dissip_energy - ext_energy;
     max_energy = max(max(kinetic_energy,dissip_energy),strain_energy);
