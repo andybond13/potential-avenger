@@ -133,6 +133,9 @@ void PotentialAvenger::run() {
     vector<double> pg(2);
     pg[0] = (1-sqrt(3)/3)/2;
     pg[1] = (1+sqrt(3)/3)/2;
+    vector<double> wg(2);
+    wg[0] = 0.5;
+    wg[1] = 0.5;
 
     d = vector<double>(Nelt,0);
     s = vector<double>(Nelt,0);
@@ -198,39 +201,12 @@ void PotentialAvenger::run() {
         ustat[j] = x[j] * ec * L * 0.999*(1-vbc);
         phi[j] = (2*h-x[j])*(1-vbc)-vbc;
     }
+            Segment seg1 = Segment(x[0],phi[0],-1,0);
+            seg1.indices.push_back(0);
+            segments.push_back(seg1);
 
-    for (unsigned j = 0; j < Nelt; ++j) {
-        e[j] = (u[j+1] - u[j])/h;
-        vector<double> dloc(2,0.0);
-        if (phi[j] > 0  && phi[j+1] > 0) {
-            for (unsigned k = 0; k < 2; ++k) {
-                double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
-                dloc[k] = dm.dval(philoc);
-                s[j] += 0.5 * (1-dloc[k]) * E * e[j];
-            }
-        } else if  (phi[j] <= 0 && phi[j+1] <= 0) {
-            s[j] = E * e[j];
-        } else if  (phi[j] > 0 && phi[j+1] <= 0) {
-            double delta = fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1]));
-            double sloc = 0;
-            for (unsigned k = 0; k < 2; ++k) {
-                double philoc = pg[k] * phi[j];
-                dloc[k] = dm.dval(philoc);
-                sloc += 0.5 * (1-dloc[k]) * E * e[j];
-            }
-            s[j] = delta *  sloc +  (1-delta) * E * e[j];
-        } else if (phi[j] <= 0 && phi[j+1] > 0) {
-            double delta = fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1]));
-            double sloc = 0;
-            for (unsigned k = 0; k < 2; ++k) {
-                double philoc = pg[k] * phi[j+1];
-                dloc[k] = dm.dval(philoc);
-                sloc += 0.5 * (1-dloc[k]) * E * e[j];
-            }
-            s[j] = delta *  sloc +  (1-delta) * E * e[j];
-        }
-        d[j] = 0.5*(dloc[0]+dloc[1]);
-    }
+    //calculate stresses
+    calculateStresses(pg,wg);
 
     //acceleration
     a[0] = 0;
@@ -312,21 +288,23 @@ void PotentialAvenger::run() {
                 double residu_Y = 0; double tangent_Y = 0;
                 unsigned loop_residu = 0;
                 unsigned loop_tangent = 0;
-                for (unsigned j = sbegin-1; j <= min(send,Nelt-2); ++j) {
+cout <<"segment l nodes " << max(0,static_cast<int>(sbegin)-1) << "  to " << min(send,Nelt-2) << endl;
+                for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send,Nelt-2); ++j) {
                     if (j < 0) continue;
+                    assert(pg.size() == wg.size());
                     if (phi[j] > 0 && phi[j+1] > 0) {
-                        for (unsigned k = 0; k < 2; ++k) {
+                        for (unsigned k = 0; k < pg.size(); ++k) {
                             double philoc = pg[k]*phi[j] + (1-pg[k]) * phi[j+1];
-                            residu_Y += h * 0.5 * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
-                            tangent_Y += h * 0.5 * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
+                            residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
+                            tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
                         }
                         loop_residu++;
                     } else if  (phi[j] > 0 && phi[j+1] <= 0) {
                         double delta = h * fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
-                        for (unsigned k = 0; k < 2; ++k) {
+                        for (unsigned k = 0; k < pg.size(); ++k) {
                             double philoc = pg[k] * phi[j];
-                            residu_Y += delta *  0.5 * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
-                            tangent_Y += delta *  0.5 * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
+                            residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
+                            tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
                         }
                         loop_residu++;
                         if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Yc)* dm.dp(0.);
@@ -335,10 +313,10 @@ void PotentialAvenger::run() {
                         loop_tangent = loop_tangent + 1;
                     } else if  (phi[j] <= 0 && phi[j+1] > 0) {
                         double delta = h * fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
-                        for (unsigned k = 0; k < 2; ++k) {
+                        for (unsigned k = 0; k < pg.size(); ++k) {
                             double philoc = pg[k] * phi[j+1];
-                            residu_Y += delta *  0.5 * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
-                            tangent_Y += delta *  0.5 * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
+                            residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
+                            tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
                         }
                         loop_residu++;
                         if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Yc)* dm.dp(0.); //%todo-doublecheck this  
@@ -472,37 +450,7 @@ cout << sbegin << " - " << send << endl;
         }
 
         //updating the stress
-        for (unsigned j = 0; j < Nelt; ++j) {
-            vector<double> dlocg(2,0);
-            if (phi[j] > 0 && phi[j+1] > 0) {
-                for (unsigned k = 0; k < 2; ++k) {
-                    double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
-                    dlocg[k] = dm.dval(philoc);
-                    s[j] = s[j] + 0.5 * (1-dlocg[k]) * E * e[j];
-                }
-            } else if  (phi[j] <= 0 && phi[j+1] <= 0) {
-                s[j] = E * e[j];
-            } else if  (phi[j] > 0 && phi[j+1] <= 0) {
-                double delta = fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1]));
-                double sloc = 0;
-                for (unsigned k = 0; k < 2; ++k) {
-                    double philoc = pg[k] * phi[j];
-                    dlocg[k] = dm.dval(philoc);
-                    sloc = sloc + 0.5 * (1 - dlocg[k]) * E * e[j];
-                }
-                s[j] = delta * sloc +  (1-delta) * E * e[j];
-            } else if  (phi[j] <= 0 && phi[j+1] > 0) {
-                double delta = fabs(phi[j+1]) / (fabs(phi[j]) + fabs(phi[j+1]));
-                double sloc = 0;
-                for (unsigned k = 0; k < 2; ++k) {
-                    double philoc = pg[k] * phi[j+1];
-                    dlocg[k] = dm.dval(philoc);
-                    sloc = sloc + 0.5 * (1 - dlocg[k]) * E * e[j];
-                }
-                s[j] = delta * sloc +  (1-delta) * E * e[j];
-            }
-            d[j] = 0.5*(dlocg[0] + dlocg[1]);
-        }
+        calculateStresses(pg,wg);
 
         //acceleration
         if (phi[0] <= lc) a[0] = 0;
@@ -553,6 +501,50 @@ cout << sbegin << " - " << send << endl;
     printf("Final number of fragments: %i \nMinimum fragment length: %f \nFinal dissipated energy: %f \n",nfrags[Ntim-1],minfrag,dissip_energy);
 
 };
+
+void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg) {
+    for (unsigned j = 0; j < Nelt; ++j) {
+
+        assert(pg.size() == wg.size());
+
+        s[j] = 0;
+        e[j] = (u[j+1] - u[j])/h;
+        vector<double> dloc(pg.size(),0.0);
+        if (phi[j] > 0  && phi[j+1] > 0) {
+            for (unsigned k = 0; k < pg.size(); ++k) {
+                double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
+                dloc[k] = dm.dval(philoc);
+                s[j] += wg[k] * (1-dloc[k]) * E * e[j];
+            }
+        } else if  (phi[j] <= 0 && phi[j+1] <= 0) {
+            s[j] = E * e[j];
+        } else if  (phi[j] > 0 && phi[j+1] <= 0) {
+            double delta = fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1]));
+            double sloc = 0;
+            for (unsigned k = 0; k < 2; ++k) {
+                double philoc = pg[k] * phi[j];
+                dloc[k] = dm.dval(philoc);
+                sloc += wg[k] * (1-dloc[k]) * E * e[j];
+            }
+            s[j] = delta *  sloc +  (1-delta) * E * e[j];
+        } else if (phi[j] <= 0 && phi[j+1] > 0) {
+            double delta = fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1]));
+            double sloc = 0;
+            for (unsigned k = 0; k < 2; ++k) {
+                double philoc = pg[k] * phi[j+1];
+                dloc[k] = dm.dval(philoc);
+                sloc += wg[k] * (1-dloc[k]) * E * e[j];
+            }
+            s[j] = delta *  sloc +  (1-delta) * E * e[j];
+        }
+
+        d[j] = 0;
+        for (unsigned k = 0; k < pg.size(); ++k) {
+            d[j] += wg[k] * dloc[k];
+        }
+    }
+    return;
+}
 
 void PotentialAvenger::calculateEnergies(const unsigned& i) {
     double dissip = 0.0;
@@ -851,7 +843,7 @@ void PotentialAvenger::plotEnergies () {
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:3 ti 'Wdis' w l ,\\\n");
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:4 ti 'Wext' w l ,\\\n");
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:5 ti 'Wkin' w l ,\\\n");
-    fprintf( pFileW, "     './datFiles/energies.dat' usi 1:($2+$3+$5) ti 'Wsum' w l\n\n");
+    fprintf( pFileW, "     './datFiles/energies.dat' usi 1:abs($2+$3+$5) ti 'Wsum' w l\n\n");
 
     fclose( pFileW );
 

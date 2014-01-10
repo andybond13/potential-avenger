@@ -46,6 +46,7 @@ std::vector<Fragment> fragment_list;
 void printRunInfo();
 
 void calculateEnergies(const unsigned& i);
+void calculateStresses(const std::vector<double>& pg, const std::vector<double>& wg);
 
 //nucleate.m
 void nucleate(double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment>& newSegment);
