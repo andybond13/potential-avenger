@@ -38,12 +38,14 @@ double E, A, rho, c, L, h, dt, Yc, sigc, ec;
 unsigned _numFrag, _Nt, _DtPrint;
 double strain_energy, dissip_energy, kinetic_energy, max_energy, ext_energy, tot_energy;
 double _fMean, _fMed, _fMax, _fMin, _fStDev, _fRange, _fSkew, _fExKurtosis;
-std::vector<double> x, t, xe, d, u, v, a, s, e, phi, Y, YmYc, energy;
+std::vector<double> x, t, xe, d, u, v, a, s, e, phi, Y, YmYc, energy, m, d_1, u_1, Ystat, ustat;
 std::vector<unsigned> nfrags;	
 DamageModel dm;
 std::vector<Fragment> fragment_list;
 
 void printRunInfo();
+
+void calculateEnergies(const unsigned& i);
 
 //nucleate.m
 void nucleate(double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment>& newSegment);

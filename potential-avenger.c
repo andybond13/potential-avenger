@@ -135,7 +135,7 @@ void PotentialAvenger::run() {
     pg[1] = (1+sqrt(3)/3)/2;
 
     d = vector<double>(Nelt,0);
-    s = vector<double>(Nelt,0);        FILE * pFile;
+    s = vector<double>(Nelt,0);
     e = vector<double>(Nelt,0);
     energy = vector<double>(Nelt,0);
     Y = vector<double>(Nelt,0);
@@ -149,8 +149,8 @@ void PotentialAvenger::run() {
 
     //Matrix bpos = Matrix(Ntim, Nelt);
     //Matrix grad = Matrix(Ntim, Nelt);
-    vector<double> ustat = vector<double>(Nnod,0);
-    vector<double> Ystat = vector<double>(Nnod,0);
+    ustat = vector<double>(Nnod,0);
+    Ystat = vector<double>(Nnod,0);
     u = vector<double>(Nnod,0);
     v = vector<double>(Nnod,0);
     a = vector<double>(Nnod,0);
@@ -164,12 +164,12 @@ void PotentialAvenger::run() {
     vector<double> phi_6 = vector<double>(Nnod,0);
     vector<double> phidot;
     //vector<double> ddotbar(Ntim,0);
-    double dissip;
+
     vector<unsigned> nbiter = vector<unsigned>(Ntim,0);
     nfrags = vector<unsigned>(Ntim,0);
     vector<Segment> segments;
 
-    vector<double> m(Nnod,rho*h*A);
+    m.assign(Nnod,rho*h*A);
     m[0] = m[0]/2; m[Nnod-1] = m[Nnod-1]/2;
 
     //initialization
@@ -247,6 +247,7 @@ void PotentialAvenger::run() {
     phidot.resize(len);
 
     //print data to file
+    calculateEnergies(0);
     if (printVTK != 0) printVtk(_Nt);
     printFrags();
     printGlobalInfo();
@@ -257,10 +258,10 @@ void PotentialAvenger::run() {
 //cout << "t = " << t[i] << endl;
 
         //Copy kinematic variables to "old"
-        vector<double> u_1 = vector<double>(Nnod,0); u_1 = u; u.assign(Nnod,0.0);
+        u_1 = vector<double>(Nnod,0); u_1 = u; u.assign(Nnod,0.0);
         vector<double> v_1 = vector<double>(Nnod,0); v_1 = v; v.assign(Nnod,0.0);
         vector<double> a_1 = vector<double>(Nnod,0); a_1 = a; a.assign(Nnod,0.0);
-        vector<double> d_1 = vector<double>(Nnod,0);
+        d_1 = vector<double>(Nnod,0);
         phi_6.clear(); if (i >= 6) phi_6 = phi_5;
         phi_5.clear(); if (i >= 5) phi_5 = phi_4;
         phi_4.clear(); if (i >= 4) phi_4 = phi_3;
@@ -518,23 +519,7 @@ cout << sbegin << " - " << send << endl;
         _numFrag = nfrags[i];
 
         //calculate energies
-        for (unsigned j = 0; j < Nelt; ++j) {
-            Y[j] = 0.5 * E * e[j] * e[j];
-            YmYc[j] = Y[j]/Yc - 1;
-            if (i > 0) {
-                dissip += h * Y[j] * (d[j] - d_1[j]);
-                kinetic_energy += 0.5 * h * rho * 0.5 *
-                                    ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
-                //ustat(i,j+1) = ustat(i,j) + h*s(0,Nelt)/(E*(1-d(i,j)));
-            }
-            energy[j] = h * Y[j] * (1 - d[j]);
-        }
-        //ustat(i,:) *= u(1,Nnod)/ustat(i,Nnod);
-        for (unsigned j = 0; j < Nelt; ++j) Ystat[j] = 0.5 * E * pow((ustat[j+1] - ustat[j])/h,2);
-        if (i > 0) ext_energy += (a[Nnod-1] * m[Nnod-1] + s[Nnod-2]) * v[Nnod-1] * dt;
-        if (i > 0) dissip_energy += dissip;
-        strain_energy = sum (energy);
-        tot_energy = strain_energy + kinetic_energy + dissip_energy - ext_energy;
+        calculateEnergies(i);
 
 		//print the rest of the table/graph data
         if (printVTK != 0) if ( ( (_Nt -1) % printVTK) == 0 ) printVtk(_Nt);
@@ -568,6 +553,33 @@ cout << sbegin << " - " << send << endl;
     printf("Final number of fragments: %i \nMinimum fragment length: %f \nFinal dissipated energy: %f \n",nfrags[Ntim-1],minfrag,dissip_energy);
 
 };
+
+void PotentialAvenger::calculateEnergies(const unsigned& i) {
+    double dissip = 0.0;
+    kinetic_energy = 0.0;
+
+    for (unsigned j = 0; j < Nelt; ++j) {
+        Y[j] = 0.5 * E * e[j] * e[j];
+        YmYc[j] = Y[j]/Yc - 1;
+        if (i > 0) {
+            dissip += h * Y[j] * (d[j] - d_1[j]);
+            kinetic_energy += 0.5 * h * rho * 0.5 *
+                                ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
+            //ustat(i,j+1) = ustat(i,j) + h*s(0,Nelt)/(E*(1-d(i,j)));
+        } else {
+            kinetic_energy += 0.5 * h * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
+        }
+        energy[j] = h * Y[j] * (1 - d[j]);
+    }
+    //ustat(i,:) *= u(1,Nnod)/ustat(i,Nnod);
+    for (unsigned j = 0; j < Nelt; ++j) Ystat[j] = 0.5 * E * pow((ustat[j+1] - ustat[j])/h,2);
+    dissip_energy += dissip;
+    strain_energy = sum (energy);
+    if (i > 0) ext_energy += (a[Nnod-1] * m[Nnod-1] + s[Nnod-2]) * v[Nnod-1] * dt;
+    else ext_energy = dissip + strain_energy + kinetic_energy;
+    tot_energy = strain_energy + kinetic_energy + dissip_energy - ext_energy;
+    max_energy = max(max(kinetic_energy,dissip_energy),strain_energy);
+}
 
 std::string convertInt(unsigned number) {
     if (number == 0)
