@@ -22,7 +22,7 @@ DamageModel::DamageModel(std::string inType, double inLC) {
 DamageModel::~DamageModel(){};
 
 void DamageModel::assignType(std::string inType) {
-    if (inType.compare("Linear")) {
+    if (inType.compare("Linear") == 0) {
         type = 1;
     } else if (inType.compare("Parabolic") == 0) {
         type = 2;

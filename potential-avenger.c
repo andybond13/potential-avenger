@@ -112,7 +112,7 @@ void PotentialAvenger::run() {
 
     printRunInfo();
 
-    dm = DamageModel("Cubic",lc);
+    dm = DamageModel("Parabolic",lc);
 
     unsigned Ntim = Nelt*ts_refine*end_t;
     Nnod = Nelt+1;
