@@ -848,7 +848,7 @@ void PotentialAvenger::plotEnergies () {
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:3 ti 'Wdis' w l ,\\\n");
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:4 ti 'Wext' w l ,\\\n");
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:5 ti 'Wkin' w l ,\\\n");
-    fprintf( pFileW, "     './datFiles/energies.dat' usi 1:abs($2+$3+$5) ti 'Wsum' w l\n\n");
+    fprintf( pFileW, "     './datFiles/energies.dat' usi 1:(abs($2+$3+$5)) ti 'Wsum' w l\n\n");
 
     fclose( pFileW );
 
