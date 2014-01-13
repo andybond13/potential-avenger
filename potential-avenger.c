@@ -370,7 +370,7 @@ cout << dphi << endl;
                 }
 cout << sbegin << " - " << send << endl;
                 for (unsigned j = sbegin; j <=send; ++j) {
-                    if (i > 6 && intOrder >= 6) {
+                    if (i > 5 && intOrder >= 6) {
                         vector<double> w;
                         w.push_back(60./147); w.push_back(360./147); w.push_back(-450./147); w.push_back(400./147);
                         w.push_back(-225./147); w.push_back(72./147); w.push_back(-10./147); 
@@ -379,7 +379,7 @@ cout << sbegin << " - " << send << endl;
                         phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]); phihist.push_back(phi_5[j]);
                         phihist.push_back(phi_6[j]);
                         phi[j] = dotProduct(phihist,w);
-                    } else if (i > 5 && intOrder >= 5) {
+                    } else if (i > 4 && intOrder >= 5) {
                         vector<double> w;
                         w.push_back(60./137); w.push_back(300./137); w.push_back(-300./137); w.push_back(200./137);
                         w.push_back(-75./137); w.push_back(12./137);
@@ -387,7 +387,7 @@ cout << sbegin << " - " << send << endl;
                         phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
                         phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]); phihist.push_back(phi_5[j]);
                         phi[j] = dotProduct(phihist,w);
-                    } else if (i > 4 && intOrder >= 4) {
+                    } else if (i > 3 && intOrder >= 4) {
                         vector<double> w;
                         w.push_back(12./25); w.push_back(48./25); w.push_back(-36./25); w.push_back(16./25);
                         w.push_back(-3./25);
@@ -395,14 +395,14 @@ cout << sbegin << " - " << send << endl;
                         phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
                         phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]);
                         phi[j] = dotProduct(phihist,w);
-                    } else if (i > 3 && intOrder >= 3) {
+                    } else if (i > 2 && intOrder >= 3) {
                         vector<double> w;
                         w.push_back(6./11); w.push_back(18./11); w.push_back(-9./11); w.push_back(2./11);
                         vector<double> phihist;
                         phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
                         phihist.push_back(phi_3[j]);
                         phi[j] = dotProduct(phihist,w);
-                    } else if (i > 2 && intOrder >= 2) {
+                    } else if (i > 1 && intOrder >= 2) {
                         vector<double> w;
                         w.push_back(2./3); w.push_back(4./3); w.push_back(-1./3);
                         vector<double> phihist;
