@@ -841,7 +841,7 @@ void PotentialAvenger::plotEnergies () {
     fprintf( pFileW, "plot './datFiles/energies.dat' usi 1:5 ti 'Wkin' w l\n\n" );
     fprintf( pFileW, "set ylabel \"Energy Balance Check\"\n" );
     fprintf( pFileW, "set output './pngFiles/enrgBalance.svg'\n");
-    fprintf( pFileW, "plot './datFiles/energies.dat' usi 1:7 ti 'Wsum' w l,\\\n" );
+    fprintf( pFileW, "plot './datFiles/energies.dat' usi 1:(abs($7)) ti 'Wsum' w l,\\\n" );
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:6 ti '0.01 * Wmax' w l\n\n" );
     fprintf( pFileW, "set ylabel \"J/s\"\n" );
 
