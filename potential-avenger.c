@@ -781,14 +781,19 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
-        Segment seg = newSegment[i];
-        for (vector<unsigned>::iterator j = seg.indices.begin() ; j != seg.indices.end(); ++j) {
-            double value_maxnew = newSegment[i].phipeak;
-            double list_maxnew = newSegment[i].xpeak;
-            phinew[*j] = value_maxnew-fabs(x[*j] -list_maxnew);
-            assert(phinew[*j] <= newSegment[i].phipeak);
+        double value_maxnew = newSegment[i].phipeak;
+        double list_maxnew = newSegment[i].xpeak;
+        for (vector<unsigned>::iterator j = newSegment[i].indices.begin() ; j != newSegment[i].indices.end(); ++j) {
+            if (phinew[*j] > value_maxnew) {
+                value_maxnew = phinew[*j];
+                list_maxnew = *j;
+            }
+//            phinew[*j] = value_maxnew-fabs(x[*j] -list_maxnew);
+            assert(phinew[*j] <= value_maxnew);
             tot_indices++;
         }
+       newSegment[i].phipeak = value_maxnew;
+       newSegment[i].xpeak = list_maxnew;
     }
     assert(tot_indices == x.size());
 
