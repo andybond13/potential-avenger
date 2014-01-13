@@ -601,7 +601,7 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
 
     for (unsigned j = 0; j < xnuc.size(); ++j) {
         double h = 0;
-        unsigned loc = -1;
+        int loc = -1;
         double delta = 0;
         
         for (unsigned i = 0; i < x.size()-1; ++i) {
@@ -763,7 +763,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     vector<double> phinew = vector<double>(phi.size(),-1);
     for (unsigned i = 0; i < phi.size(); ++i) {
         
-        unsigned segphimin;
+        int segphimin = -1;
         double min = 9999999999;
         for (unsigned k = 0; k < value_max.size(); ++k) {
             double qty = -value_max[k] + fabs(x[i] - list_max[k]);
@@ -772,6 +772,8 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
                 segphimin = k;
             }
         }
+        assert(segphimin > -1);
+
         phinew[i] = -min;
         
         newSegment[segphimin].indices.push_back(i);

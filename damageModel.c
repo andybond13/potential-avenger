@@ -62,6 +62,8 @@ double DamageModel::dval(double phi) {
     case 4:
         return sqrt(x);
     }
+    assert(1 == 0);
+    return -1;
 };
 
 double DamageModel::dp(double phi) {
@@ -88,6 +90,8 @@ double DamageModel::dp(double phi) {
     case 4:
         return 1/lc * 2*x;
     }
+    assert(1 == 0);
+    return -1;
 };
 
 double DamageModel::dpp(double phi) {
@@ -113,6 +117,8 @@ double DamageModel::dpp(double phi) {
     case 4:
         return (1/lc)*(1/lc)*2;
     }
+    assert(1 == 0);
+    return -1;
 };
 
 double DamageModel::getLC() {

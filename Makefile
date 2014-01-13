@@ -1,6 +1,6 @@
 #makefile
 COMPILER = g++
-COMPILER_FLAGS = -g -O3
+COMPILER_FLAGS = -g -O3 -Wall
 LIB = 
 SOURCES = $(wildcard *.c) 
 INC = -I .
