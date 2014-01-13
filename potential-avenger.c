@@ -237,7 +237,7 @@ void PotentialAvenger::run() {
         u_1 = vector<double>(Nnod,0); u_1 = u; u.assign(Nnod,0.0);
         vector<double> v_1 = vector<double>(Nnod,0); v_1 = v; v.assign(Nnod,0.0);
         vector<double> a_1 = vector<double>(Nnod,0); a_1 = a; a.assign(Nnod,0.0);
-        d_1 = vector<double>(Nnod,0);
+        d_1 = vector<double>(Nnod,0); d_1 = d; d.assign(Nnod,0.0);
         phi_6.clear(); if (i >= 6) phi_6 = phi_5;
         phi_5.clear(); if (i >= 5) phi_5 = phi_4;
         phi_4.clear(); if (i >= 4) phi_4 = phi_3;
