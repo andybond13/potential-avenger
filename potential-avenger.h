@@ -75,6 +75,7 @@ void printCellData ( const std::string& vtkFile ) const;
 void printGlobalInfo () const;
 void printFrags ();
 void printSTheta ();
+void printHisto ();
 void printClean() const;
 
 };

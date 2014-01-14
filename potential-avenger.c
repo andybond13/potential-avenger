@@ -908,7 +908,7 @@ void PotentialAvenger::plotHisto () {
     fprintf( pFileW, "set title \"Fragment Length CDF Graph\"\n"); 
     fprintf( pFileW, "set xlabel \"Fragment Length, Lf (m)\"\n" );
     fprintf( pFileW, "set ylabel \"# ( Length > Lf )\"\n" );
-    fprintf( pFileW, "set yrange [0:%u]\n", _numFrag);
+    if (_numFrag > 0) fprintf( pFileW, "set yrange [0:%u]\n", _numFrag);
     fprintf( pFileW, "set terminal svg size 1200, 800 \n\n" );
     fprintf( pFileW, "set output './pngFiles/fraginvcdf.svg'\n");
     fprintf( pFileW, "plot './datFiles/fraghisto.dat' usi 1:2 ti '' w l;\n\n" );
@@ -1153,6 +1153,98 @@ void PotentialAvenger::printSTheta () {
 	fclose( pFile );
     }
 }
+
+
+void PotentialAvenger::printHisto() {
+    // Prints Histogram and scaled 1-cdf figure
+    vector<vector<double> > fragInvCDF;
+    vector<unsigned> fHisto;
+
+    if (_numFrag > 1) {
+		fragInvCDF.resize(2);
+		fragInvCDF[0].resize(1000);	//a length, from zero to the max. fragment size
+		fragInvCDF[1].resize(1000);	//number of fragments larger than this length
+		fHisto.assign(25, 0);		//number of bins for the fragment histogram
+	
+		//Histogram - 25 bins
+		 double max = _fMax;	//size
+		//Step through fragment length list; increase count in the bin if fragment fits
+		for (unsigned k = 0; k < fragment_list.size(); k++){
+            double length = fragment_list[k].length();
+            if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
+			if (length < max * 0.04) fHisto[0]++;
+			if ((length < max * 0.08) && (length >= max * 0.04)) fHisto[1]++;
+			if ((length < max * 0.12) && (length >= max * 0.08)) fHisto[2]++;
+			if ((length < max * 0.16) && (length >= max * 0.12)) fHisto[3]++;
+			if ((length < max * 0.20) && (length >= max * 0.16)) fHisto[4]++;
+			if ((length < max * 0.24) && (length >= max * 0.20)) fHisto[5]++;
+			if ((length < max * 0.28) && (length >= max * 0.24)) fHisto[6]++;
+			if ((length < max * 0.32) && (length >= max * 0.28)) fHisto[7]++;
+			if ((length < max * 0.36) && (length >= max * 0.32)) fHisto[8]++;
+			if ((length < max * 0.40) && (length >= max * 0.36)) fHisto[9]++;
+			if ((length < max * 0.44) && (length >= max * 0.40)) fHisto[10]++;
+			if ((length < max * 0.48) && (length >= max * 0.44)) fHisto[11]++;
+			if ((length < max * 0.52) && (length >= max * 0.48)) fHisto[12]++;
+			if ((length < max * 0.56) && (length >= max * 0.52)) fHisto[13]++;
+			if ((length < max * 0.60) && (length >= max * 0.56)) fHisto[14]++;
+			if ((length < max * 0.64) && (length >= max * 0.60)) fHisto[15]++;
+			if ((length < max * 0.68) && (length >= max * 0.64)) fHisto[16]++;
+			if ((length < max * 0.72) && (length >= max * 0.68)) fHisto[17]++;
+			if ((length < max * 0.76) && (length >= max * 0.72)) fHisto[18]++;
+			if ((length < max * 0.80) && (length >= max * 0.76)) fHisto[19]++;
+			if ((length < max * 0.84) && (length >= max * 0.80)) fHisto[20]++;
+			if ((length < max * 0.88) && (length >= max * 0.84)) fHisto[21]++;
+			if ((length < max * 0.92) && (length >= max * 0.88)) fHisto[22]++;
+			if ((length < max * 0.96) && (length >= max * 0.92)) fHisto[23]++;
+			if ((length <= max) && (length >= max * 0.96)) fHisto[24]++;
+		}
+
+		//Open file to record histogram and 1-cdf data
+		if ( _HistoFile.size() > 0 ) {
+			FILE * pFile;
+			pFile = fopen( _HistoFile.c_str(), "a" );
+			double j = 0;
+			for (unsigned i = 0; i < 1000; i++) {
+
+				//grab the 1-cdf data; 
+				unsigned count = 0;
+				j = max * (i / 1000.0);	//from 0 to max length, 1000 increments
+				for (unsigned k = 0; k < _numFrag; k++) {
+                    double length = fragment_list[k].length();
+                    if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
+					if (length > j) {		//if frag length greater than j, add to count
+						count += 1;
+					}
+				}
+		
+				//save to vector
+				fragInvCDF[0][i] = j;
+				fragInvCDF[1][i] = (double)count;
+				fprintf( pFile, "%6.3e %u", j, count);		//print to file
+
+				//print histogram info to file - relative size (% of max frag length) & count
+				if (i < 25) {	//piggybacking the for loop, only need the first 25
+					fprintf( pFile, " %f %u", (double)(i*4+2), fHisto[i] );
+				} else {
+					fprintf( pFile, " 0 0");
+				}
+				fprintf( pFile, "\n" );
+			}
+
+
+			//print raw fragment sizes to file
+			fprintf( pFile,"\n" ); //fprintf( pFile, "Sizes: \n" );
+			for (unsigned k = 0; k < fragment_list.size(); k++){
+                double length = fragment_list[k].length();
+                if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
+				fprintf( pFile, "%12.3e \n", length );
+			}
+
+			fclose( pFile );
+		}
+    }
+}
+
 
 void PotentialAvenger::printClean () const {
     std::string cleanPath = _path+"/clean.sh";
