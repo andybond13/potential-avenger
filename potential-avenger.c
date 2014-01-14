@@ -320,7 +320,7 @@ void PotentialAvenger::run() {
                         }
                         loop_residu++;
                         if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Yc)* dm.dp(0.); //%todo-doublecheck this  
-                        else tangent_Y += (0.5 * E * e[j-1] * e[j-1] - Yc)  * dm.dp(0.);   //%todo-doublecheck this
+                        else tangent_Y += (0.5 * E * e[j] * e[j] - Yc)  * dm.dp(0.);   //%todo-doublecheck this
                         loop_tangent++;
                     
                     }
