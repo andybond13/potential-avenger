@@ -42,11 +42,14 @@ class Fragment{
     Fragment(const Fragment& f);
     ~Fragment();
     
-    std::vector<Segment*> fragSegs;
-
     double length();
     unsigned begin();
     unsigned end();
+    void add(Segment* in);
+    void clear();
+
+    private:
+    std::vector<Segment*> fragSegs; 
 };
 
 Fragment::Fragment(){};
@@ -61,14 +64,9 @@ Fragment::~Fragment(){};
 
 double Fragment::length() {
     double len = 0;
-std::cout << "number of segments in fragment = " << fragSegs.size() << std::endl;
 
 
-    for (unsigned i = 0; i < fragSegs.size(); ++i) {
- std::cout << "   begin = " << fragSegs[i]->begin() << "   end = " << fragSegs[i]->end() << std::endl;
-        len += fragSegs[i]->length(); 
-//std::cout << fragSegs[i]->length() << "  -  " << fragSegs[i]->begin() << " , " << fragSegs[i]->end() << std::endl;}
-}
+    for (unsigned i = 0; i < fragSegs.size(); ++i) len += fragSegs[i]->length(); 
     return len;
 }
 
@@ -84,6 +82,16 @@ unsigned Fragment::end() {
     for (unsigned i = 0; i < fragSegs.size(); ++i) ends.push_back(fragSegs[i]->end());
     std::sort(ends.begin(),ends.end());
     return ends[ends.size()-1];
+}
+
+void Fragment::add(Segment* in) {
+    fragSegs.push_back(in);
+    return;
+}
+
+void Fragment::clear() {
+    fragSegs.clear();
+    return;
 }
 
 Segment::Segment(double in1, double in2, int in3, unsigned in4) {
