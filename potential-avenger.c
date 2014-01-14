@@ -500,6 +500,10 @@ cout << sbegin << " - " << send << endl;
     if (nfrags[Ntim-1] > 0) assert(sumfrag == L);
     printf("Final number of fragments: %i \nMinimum fragment length: %f \nFinal dissipated energy: %f \n",nfrags[Ntim-1],minfrag,dissip_energy);
 
+    
+    //print histogram
+    printHisto();
+    return;
 };
 
 void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg) {
