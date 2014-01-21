@@ -224,6 +224,7 @@ void PotentialAvenger::run() {
     phidot.resize(len);
 
     //print data to file
+    fragmentStats();
     calculateEnergies(0);
     if (printVTK != 0) printVtk(_Nt);
     printFrags();
@@ -1153,6 +1154,68 @@ void PotentialAvenger::printSTheta () {
     }
 }
 
+void PotentialAvenger::fragmentStats() {
+	//Initialize statistics of fragment length distribution
+	_fMean = 0;
+	_fMed = 0;
+	_fMax = 0;
+	_fMin = 0;
+	_fStDev = 0;
+	_fRange = 0;
+	_fSkew = 0;
+	_fExKurtosis = 0;
+
+	//If there are any fragments...
+	//Calculate Median
+	// Sort the list in ascending order
+    vector<double> fragLength(0);
+	for (unsigned k = 0; k < fragment_list.size(); k++) fragLength.push_back(fragment_list[k].length());
+	sort(fragLength.begin(), fragLength.end());
+
+	if (_numFrag % 2 == 0) {
+        	//If even number, take average of two middle values
+		_fMed = ( fragLength[ (unsigned)(_numFrag * 0.5) ]
+			+ fragLength[ (unsigned)(_numFrag * 0.5) -1 ] ) * 0.5;
+	} else {
+		//If odd number, take middle value
+		_fMed = fragLength[ (_numFrag - 1) / 2 ];
+	}
+	//Calculate Max, Min, Range
+	_fMax = fragLength.back();
+	_fMin = fragLength.front();
+	_fRange = _fMax - _fMin;
+
+	//Calculate Mean
+	for (unsigned k = 0; k < fragLength.size(); k++){
+		//Sum of lengths
+		_fMean += fragLength[k];
+	}
+    //Mean = sum / number
+	_fMean = _fMean / _numFrag;
+
+	//Calculate Std. Deviation
+	for (unsigned k = 0; k < fragLength.size(); k++){
+		//Sum of squared (lengths - means)
+		_fStDev += pow( (fragLength[k] - _fMean), 2);
+	}
+	_fStDev = sqrt( _fStDev / _numFrag ) ;
+
+	//Calculate Skew
+	for (unsigned k = 0; k < fragLength.size(); k++){
+		//Sum of squared (lengths - means)
+		_fSkew += pow( (fragLength[k] - _fMean), 3);
+	}
+	_fSkew = _fSkew / (_numFrag * pow(_fStDev,3) );
+
+	//Calculate Kurtosis
+	for (unsigned k = 0; k < fragLength.size(); k++){
+		//Sum of squared (lengths - means)
+		_fExKurtosis += pow( (fragLength[k] - _fMean), 4);
+	}
+	_fExKurtosis = _fExKurtosis / (_numFrag * pow(_fStDev,4) ) - 3.0;
+    return;
+}
+
 
 void PotentialAvenger::printHisto() {
     // Prints Histogram and scaled 1-cdf figure
@@ -1160,67 +1223,6 @@ void PotentialAvenger::printHisto() {
     vector<unsigned> fHisto;
 
     if (_numFrag > 1) {
-
-
-		//Initialize statistics of fragment length distribution
-		_fMean = 0;
-		_fMed = 0;
-		_fMax = 0;
-		_fMin = 0;
-		_fStDev = 0;
-		_fRange = 0;
-		_fSkew = 0;
-		_fExKurtosis = 0;
-
-		//If there are any fragments...
-		//Calculate Median
-		// Sort the list in ascending order
-        vector<double> fragLength(0);
-		for (unsigned k = 0; k < fragment_list.size(); k++) fragLength.push_back(fragment_list[k].length());
-
-		sort(fragLength.begin(), fragLength.end());
-
-		if (_numFrag % 2 == 0) {
-			//If even number, take average of two middle values
-			_fMed = ( fragLength[ (unsigned)(_numFrag * 0.5) ]
-				+ fragLength[ (unsigned)(_numFrag * 0.5) -1 ] ) * 0.5;
-		} else {
-			//If odd number, take middle value
-			_fMed = fragLength[ (_numFrag - 1) / 2 ];
-		}
-		//Calculate Max, Min, Range
-		_fMax = fragLength.back();
-		_fMin = fragLength.front();
-		_fRange = _fMax - _fMin;
-	
-		//Calculate Mean
-		for (unsigned k = 0; k < fragLength.size(); k++){
-			//Sum of lengths
-			_fMean += fragLength[k];
-		}
-		//Mean = sum / number
-		_fMean = _fMean / _numFrag;
-
-		//Calculate Std. Deviation
-		for (unsigned k = 0; k < fragLength.size(); k++){
-			//Sum of squared (lengths - means)
-			_fStDev += pow( (fragLength[k] - _fMean), 2);
-		}
-		_fStDev = sqrt( _fStDev / _numFrag ) ;
-
-		//Calculate Skew
-		for (unsigned k = 0; k < fragLength.size(); k++){
-			//Sum of squared (lengths - means)
-			_fSkew += pow( (fragLength[k] - _fMean), 3);
-		}
-		_fSkew = _fSkew / (_numFrag * pow(_fStDev,3) );
-
-		//Calculate Kurtosis
-		for (unsigned k = 0; k < fragLength.size(); k++){
-			//Sum of squared (lengths - means)
-			_fExKurtosis += pow( (fragLength[k] - _fMean), 4);
-		}
-		_fExKurtosis = _fExKurtosis / (_numFrag * pow(_fStDev,4) ) - 3.0;
 
 		fragInvCDF.resize(2);
 		fragInvCDF[0].resize(1000);	//a length, from zero to the max. fragment size

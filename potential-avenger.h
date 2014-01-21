@@ -77,6 +77,7 @@ void printFrags ();
 void printSTheta ();
 void printHisto ();
 void printClean() const;
+void fragmentStats();
 
 };
 
