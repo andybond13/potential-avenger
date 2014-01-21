@@ -497,7 +497,7 @@ cout << sbegin << " - " << send << endl;
         }
     }
 
-    if (nfrags[Ntim-1] > 0) assert(fabs(sumfrag == L) < 0.5*h);
+    if (nfrags[Ntim-1] > 0) assert(fabs(sumfrag - L) < 0.5*h);
     printf("Final number of fragments: %i \nMinimum fragment length: %f \nFinal dissipated energy: %f \n",nfrags[Ntim-1],minfrag,dissip_energy);
 
     
