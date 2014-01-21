@@ -472,6 +472,7 @@ cout << sbegin << " - " << send << endl;
 
 		//print the rest of the table/graph data
         if (printVTK != 0) if ( ( (_Nt -1) % printVTK) == 0 ) printVtk(_Nt);
+        fragmentStats();
         printFrags();
         printGlobalInfo();
 
