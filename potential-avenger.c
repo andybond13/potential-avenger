@@ -1155,6 +1155,9 @@ void PotentialAvenger::printSTheta () {
 }
 
 void PotentialAvenger::fragmentStats() {
+
+    if (fragment_list.size() == 0) return;
+
 	//Initialize statistics of fragment length distribution
 	_fMean = 0;
 	_fMed = 0;
@@ -1169,7 +1172,11 @@ void PotentialAvenger::fragmentStats() {
 	//Calculate Median
 	// Sort the list in ascending order
     vector<double> fragLength(0);
-	for (unsigned k = 0; k < fragment_list.size(); k++) fragLength.push_back(fragment_list[k].length());
+    for (unsigned i = 0; i < fragment_list.size(); ++i) {
+        double fragLen = fragment_list[i].length()*static_cast<double>(h);
+        if (((fragment_list.size() % 2) == 1) && (fragment_list[i].begin() == 0)) fragLen *= 2;
+        fragLength.push_back(fragLen);
+    }
 	sort(fragLength.begin(), fragLength.end());
 
 	if (_numFrag % 2 == 0) {
