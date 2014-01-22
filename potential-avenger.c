@@ -1182,11 +1182,11 @@ void PotentialAvenger::fragmentStats() {
 
 	if (_numFrag % 2 == 0) {
         	//If even number, take average of two middle values
-		_fMed = ( fragLength[ (unsigned)(_numFrag * 0.5) ]
-			+ fragLength[ (unsigned)(_numFrag * 0.5) -1 ] ) * 0.5;
+		_fMed = ( fragLength[ (unsigned)(fragLength.size() * 0.5) ]
+			+ fragLength[ (unsigned)(fragLength.size() * 0.5) -1 ] ) * 0.5;
 	} else {
 		//If odd number, take middle value
-		_fMed = fragLength[ (_numFrag - 1) / 2 ];
+		_fMed = fragLength[ (fragLength.size() - 1) / 2 ];
 	}
 	//Calculate Max, Min, Range
 	_fMax = fragLength.back();
@@ -1232,6 +1232,14 @@ void PotentialAvenger::printHisto() {
 
     if (_numFrag > 1) {
 
+        vector<double> fragLength(0);
+        for (unsigned i = 0; i < fragment_list.size(); ++i) {
+            double fragLen = fragment_list[i].length()*static_cast<double>(h);
+            if (((fragment_list.size() % 2) == 1) && (fragment_list[i].begin() == 0)) fragLen *= 2;
+            fragLength.push_back(fragLen);
+        }
+        	sort(fragLength.begin(), fragLength.end());
+
 		fragInvCDF.resize(2);
 		fragInvCDF[0].resize(1000);	//a length, from zero to the max. fragment size
 		fragInvCDF[1].resize(1000);	//number of fragments larger than this length
@@ -1241,7 +1249,7 @@ void PotentialAvenger::printHisto() {
 		 double max = _fMax;	//size
 		//Step through fragment length list; increase count in the bin if fragment fits
 		for (unsigned k = 0; k < fragment_list.size(); k++){
-            double length = fragment_list[k].length();
+            double length = fragLength[k];
             if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
 			if (length < max * 0.04) fHisto[0]++;
 			if ((length < max * 0.08) && (length >= max * 0.04)) fHisto[1]++;
@@ -1279,10 +1287,9 @@ void PotentialAvenger::printHisto() {
 
 				//grab the 1-cdf data; 
 				unsigned count = 0;
-				j = max * (i / 1000.0);	//from 0 to max length, 1000 increments
+				j = max * (static_cast<double>(i) / 1000.0);	//from 0 to max length, 1000 increments
 				for (unsigned k = 0; k < fragment_list.size(); k++) {
-                    double length = fragment_list[k].length();
-                    if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
+                    double length = fragLength[k];
 					if (length > j) {		//if frag length greater than j, add to count
 						count += 1;
 					}
