@@ -1180,7 +1180,7 @@ void PotentialAvenger::fragmentStats() {
     }
 	sort(fragLength.begin(), fragLength.end());
 
-	if (_numFrag % 2 == 0) {
+	if (fragLength.size() % 2 == 0) {
         	//If even number, take average of two middle values
 		_fMed = ( fragLength[ (unsigned)(fragLength.size() * 0.5) ]
 			+ fragLength[ (unsigned)(fragLength.size() * 0.5) -1 ] ) * 0.5;
