@@ -1176,6 +1176,7 @@ void PotentialAvenger::fragmentStats() {
     for (unsigned i = 0; i < fragment_list.size(); ++i) {
         double fragLen = fragment_list[i].length()*static_cast<double>(h);
         if (((fragment_list.size() % 2) == 1) && (fragment_list[i].begin() == 0)) fragLen *= 2;
+        else fragLength.push_back(fragLen);
         fragLength.push_back(fragLen);
     }
 	sort(fragLength.begin(), fragLength.end());
