@@ -202,7 +202,7 @@ void PotentialAvenger::run() {
         phi[j] = (2*h-x[j])*(1-vbc)-vbc;
     }
 
-    Segment seg1 = Segment(x[0],phi[0],-1,Nnod);
+    Segment seg1 = Segment(x[0],phi[0],0,Nnod);
     seg1.indices.push_back(0);
     segments.push_back(seg1);
 
@@ -284,6 +284,9 @@ void PotentialAvenger::run() {
             double dphi = 0;
             nbiter[i] = 0;
             double residu = 0;
+//cout << "int: [" << sbegin << "," << send<< "]  dmax = " << dm.dval(segments[l].phipeak) << "  phimax = " << segments[l].phipeak << "  ," << 
+//"  x= " << segments[l].xpeak << "   slope = " << segments[l].slope <<
+//endl;
 
             while (err_crit > 1.e-6) {
                 nbiter[i]++;
@@ -298,6 +301,8 @@ void PotentialAvenger::run() {
                             double philoc = pg[k]*phi[j] + (1-pg[k]) * phi[j+1];
                             residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
                             tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
+                            if (segments[l].slope == 1 && x[j+1] > segments[l].xpeak && k == 1) philoc = -1;    //if peak is within element, only integrate the side with the proper slope
+                            if (segments[l].slope == -1 && x[j] < segments[l].xpeak && k == 0) philoc = -1;     //if peak is within element, only integrate the side with the proper slope
                         }
                         loop_residu++;
                     } else if  (phi[j] > 0 && phi[j+1] <= 0) {
@@ -329,10 +334,9 @@ void PotentialAvenger::run() {
             
                 // law Ybar = Yc
                 if (1==1) {
-                    bool flag = true; //0 is exterior (damage centered on edge of domain); 1 is interior
-                    if (l == 1 && segments[l].begin() == 0) flag = false;
-                    if (l == segments.size()-1 && segments[l].end() == Nnod-1) flag = false;
-
+                    int flag = 1; //0 is exterior (damage centered on edge of domain); 1 is interior
+                    if (l == 1 && segments[l].begin() == 0) flag = 0;
+                    if (l == segments.size()-1 && segments[l].end() == Nnod-1) flag = 0;
                     
                     double phimax = phi[sbegin];
                     unsigned iphimax = sbegin;
@@ -342,7 +346,7 @@ void PotentialAvenger::run() {
                             iphimax = k;
                         }
                     }
-                    phimax = segments[l].phipeak;
+                    //phimax = segments[l].phipeak + dphi;//max(0.0,dphi);
 
                     double phimaxY;
                     if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
@@ -352,14 +356,16 @@ void PotentialAvenger::run() {
                     double oldresidu = residu;
                     residu = YbarmYc/Yc;
                     err_crit = fabs(residu-oldresidu);
-                    double tangent = (tangent_Y + flag*(phimaxY-Yc)*dm.dp(phimax)/2)/(Yc*dm.dval(phimax)) - ((1+flag/2)*dm.dp(phimax)/pow(dm.dval(phimax),2)) * (YbarmYc/Yc);
+                    double tangent = (tangent_Y + static_cast<double>(flag)*(phimaxY-Yc)*dm.dp(phimax)/2.0)/(Yc*dm.dval(phimax)) - ((1.0+static_cast<double>(flag)/2.0)*dm.dp(phimax)/pow(dm.dval(phimax),2)) * (YbarmYc/Yc);
+//        cout << " " << dphi << " : " << residu_Y << " , " << tangent_Y << "    |  " << tangent << " , " << phimax << " , " << segments[l].phipeak << " , " << dphi << endl;
                     if (fabs(tangent) <= 1.e-10) {
                         err_crit = 0.; dphi = 0.;
                     } else {
                         dphi = - residu/tangent;
                     }
                 }
-cout << dphi << endl;
+
+//cout << "dphi = " << dphi;
                 if (nbiter[i] > 50) {
                     dphi = 0;
                     //assert(1==0);
@@ -369,7 +375,7 @@ cout << dphi << endl;
                     dphi = 0;
                     assert(1==0);                
                 }
-cout << sbegin << " - " << send << endl;
+
                 for (unsigned j = sbegin; j <=send; ++j) {
                     if (i > 5 && intOrder >= 6) {
                         vector<double> w;
@@ -414,11 +420,12 @@ cout << sbegin << " - " << send << endl;
                     }
                     phi[j] = max(phi[j],phi_1[j]); //constraint: dphi >= 0
                     //enforcing limit of level-set motion
-                    //phi(i,j) = min(phi(i-1,j)+h,phi(i,j));
+                    //phi[j] = min(phi_1[j]+h,phi[j]);
                 }
             } //while
         
             err_crit = 0.0;
+            segments[l].setPeak(x,phi); //segments[l].phipeak += dphi; 
         } //for segments
 
         //check for nucleation
@@ -471,7 +478,7 @@ cout << sbegin << " - " << send << endl;
         calculateEnergies(i);
 
 		//print the rest of the table/graph data
-        if (printVTK != 0) if ( ( (_Nt -1) % printVTK) == 0 ) printVtk(_Nt);
+        if (printVTK != 0) if ( ( _Nt % printVTK) == 0 ) {printVtk(_Nt); cout << "*t = " << t[i] << endl;}
         fragmentStats();
         printFrags();
         printGlobalInfo();
@@ -624,17 +631,28 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
         phi[loc] = phinuc[j] - delta*h;
         phi[loc+1] = phinuc[j] - (1-delta)*h;
         printf("crack nucleated, t = %f, x = %f \n",t,xnuc[j]);
+        double zero = 0;
         
         //create two new segments
         if (xnuc[j] > x[0]) {
-            Segment seg1 = Segment(xnuc[j],phinuc[j]-delta*h,-1,Nnod);
+            Segment seg1 = Segment(xnuc[j]-delta*h*zero,phinuc[j]-delta*h*zero,-1,Nnod);
             seg1.indices.push_back(loc);
             newSegment.push_back(seg1);
         }
         if (xnuc[j] < x[x.size()-1]) {
-            Segment seg2 = Segment(xnuc[j],phinuc[j]-(1-delta)*h,1,Nnod);
+            Segment seg2 = Segment(xnuc[j]+(1-delta)*h*zero,phinuc[j]-(1-delta)*h*zero,1,Nnod);
             seg2.indices.push_back(loc+1);
             newSegment.push_back(seg2);
+        }
+        //now that there has been nucleation, get rid of zero-slope segments
+        vector<unsigned> delList;
+        for (unsigned i = 0; i < newSegment.size(); ++i) {
+            if (newSegment[i].slope == 0 || newSegment[i].phipeak == -1) delList.push_back(i);
+        }
+        while (delList.size() > 0) {
+            unsigned index = delList[delList.size()-1]; 
+            newSegment.erase(newSegment.begin() + index);
+            delList.pop_back();
         }
 
     }
@@ -747,10 +765,10 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 
     vector<double> list_max;
     vector<double> value_max;
+    vector<double> slope;
     sort(newSegment.begin(), newSegment.end());
    
     assert(x.size() >= 1);
-    //if (value_max.size() == list_max.size() && value_max.size() == 0) return;
 
     //simply use pre-defined segments
     if (newSegment.size() == 0) return;
@@ -758,8 +776,15 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         //assert(newSegment[i].size() > 0);
         list_max.push_back(newSegment[i].xpeak);
         value_max.push_back(newSegment[i].phipeak);
+        slope.push_back(newSegment[i].slope);
         newSegment[i].indices.clear();
     }
+
+    //delete segments, make new ones
+    unsigned nSegs = newSegment.size();
+    newSegment.clear();
+    newSegment.resize(nSegs*2);
+
 
     //re-define segments.indices and phi
     vector<double> phinew = vector<double>(phi.size(),-1);
@@ -777,27 +802,44 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         assert(segphimin > -1);
 
         phinew[i] = -min;
-        
-        newSegment[segphimin].indices.push_back(i);
-
+        if (x[i] < list_max[segphimin])     newSegment[2*segphimin].indices.push_back(i);
+        if (x[i] >= list_max[segphimin])     newSegment[2*segphimin+1].indices.push_back(i);
+        assert(newSegment[segphimin].slope != 0);
         phinew[i] = max(phinew[i],phi[i]);
+    }
+
+    //delete empty segments; set slope
+    vector<unsigned> delList;
+    for (unsigned i = 0; i < newSegment.size(); ++i) {
+        if (newSegment[i].size() == 0) {                            //delete empty
+            delList.push_back(i);        
+            continue;
+        }
+        if (newSegment[i].size() == 1) {                            //delete size-1 if possible, copy index to neighbor
+            unsigned index = newSegment[i].indices[0];
+            unsigned mod =  2*(i % 2) - 1;
+            if (newSegment[i-mod].size() > 0 )  {
+                newSegment[i - mod].indices.push_back(index);
+                delList.push_back(i);
+                continue;
+            }
+        }
+        if (phinew[newSegment[i].begin()] < phinew[newSegment[i].end()]) newSegment[i].slope = 1;
+        else newSegment[i].slope = -1;
+    }
+    while (delList.size() > 0) {
+        unsigned index = delList[delList.size()-1]; 
+        newSegment.erase(newSegment.begin() + index);
+        delList.pop_back();
     }
 
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
-        double value_maxnew = newSegment[i].phipeak;
-        double list_maxnew = newSegment[i].xpeak;
-        for (vector<unsigned>::iterator j = newSegment[i].indices.begin() ; j != newSegment[i].indices.end(); ++j) {
-            if (phinew[*j] > value_maxnew) {
-                value_maxnew = phinew[*j];
-                list_maxnew = x[*j];
-            }
-            assert(phinew[*j] <= value_maxnew);
-            tot_indices++;
-        }
-       newSegment[i].phipeak = value_maxnew;
-       newSegment[i].xpeak = list_maxnew;
+        newSegment[i].setPeak(x,phinew);
+        tot_indices += newSegment[i].size();
+        if (newSegment[i].phipeak> 0) assert(newSegment[i].indices.size() < x.size());
     }
+
     assert(tot_indices == x.size());
 
     //return phinew as phi

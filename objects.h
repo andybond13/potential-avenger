@@ -31,6 +31,7 @@ class Segment{
     double phipeak; //phimax
     double slope;
     unsigned Nnod;
+    void setPeak(const std::vector<double>& x, const std::vector<double>& phi);
     bool operator<(const Segment& in) const;
 
     private:
@@ -153,8 +154,23 @@ unsigned Segment::penult() {
     return indices[indices.size()-2];
 }
 
-unsigned Segment::size() {return indices.size();};
+unsigned Segment::size() {return indices.size();}
 
+void Segment::setPeak(const std::vector<double>& x, const std::vector<double>& phi) {
+    double phimax = -2;
+    double xmax = 0;
+    for (unsigned i = 0; i < indices.size(); ++i) {
+        unsigned index = indices[i];
+        if (phi[index] > phimax) {
+            phimax = phi[index];
+            xmax = x[index];
+        }
+    }
+    assert(phimax > -2);
+    this->xpeak = xmax;
+    this->phipeak = phimax;
+    return;
+}
 
 #endif
 
