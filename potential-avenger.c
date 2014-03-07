@@ -671,7 +671,8 @@ void PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment>& newS
         f.add(&newSegment[i]);
         double phimax = newSegment[i].phipeak;
         double slope = newSegment[i].slope;
-        if (slope == 1 && dm.dval(phimax) == 1.0 || newSegment[i].end()  == Nnod - 1) {
+//    cout << "i = " << i << " [" << newSegment[i].begin() << "," << newSegment[i].end() << "]  slope = " << slope << " dval_max = " << dm.dval(phimax) << endl;
+        if (slope == 1 && phimax >= lc-h || newSegment[i].end()  == Nnod - 1) {
             fragment_list.push_back(f);
             f.clear(); f = Fragment();
         } else {}
