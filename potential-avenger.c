@@ -145,6 +145,7 @@ void PotentialAvenger::run() {
     energy = vector<double>(Nelt,0);
     Y = vector<double>(Nelt,0);
     YmYc = vector<double>(Nelt,0);
+    vector<double> Ycv(Nelt,Yc);
     strain_energy = 0.0;
     kinetic_energy = 0.0;
     dissip_energy = 0.0;
@@ -290,6 +291,8 @@ void PotentialAvenger::run() {
 //"  x= " << segments[l].xpeak << "   slope = " << segments[l].slope <<
 //endl;
 
+            if (segments[l].phipeak <= 0) continue;
+
             while (err_crit > 1.e-6) {
                 nbiter[i]++;
                 double residu_Y = 0; double tangent_Y = 0;
@@ -301,34 +304,34 @@ void PotentialAvenger::run() {
                     if (phi[j] > 0 && phi[j+1] > 0) {
                         for (unsigned k = 0; k < pg.size(); ++k) {
                             double philoc = pg[k]*phi[j] + (1-pg[k]) * phi[j+1];
-                            residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
-                            tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
                             if (segments[l].slope == 1 && x[j+1] > segments[l].xpeak && k == 1) philoc = -1;    //if peak is within element, only integrate the side with the proper slope
                             if (segments[l].slope == -1 && x[j] < segments[l].xpeak && k == 0) philoc = -1;     //if peak is within element, only integrate the side with the proper slope
+                            residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
+                            tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
                         }
                         loop_residu++;
                     } else if  (phi[j] > 0 && phi[j+1] <= 0) {
                         double delta = h * fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
                         for (unsigned k = 0; k < pg.size(); ++k) {
                             double philoc = pg[k] * phi[j];
-                            residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
-                            tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
+                            residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
+                            tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
                         }
                         loop_residu++;
-                        if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Yc)* dm.dp(0.);
-                        else tangent_Y += (0.5 * E * e[j+1] * e[j+1] - Yc)  * dm.dp(0.);
+                        if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])* dm.dp(0.);
+                        else tangent_Y += (0.5 * E * e[j+1] * e[j+1] - Ycv[j])  * dm.dp(0.);
                         
                         loop_tangent = loop_tangent + 1;
                     } else if  (phi[j] <= 0 && phi[j+1] > 0) {
                         double delta = h * fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
                         for (unsigned k = 0; k < pg.size(); ++k) {
                             double philoc = pg[k] * phi[j+1];
-                            residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dp(philoc);
-                            tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Yc) * dm.dpp(philoc);
+                            residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
+                            tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
                         }
                         loop_residu++;
-                        if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Yc)* dm.dp(0.); //%todo-doublecheck this  
-                        else tangent_Y += (0.5 * E * e[j] * e[j] - Yc)  * dm.dp(0.);   //%todo-doublecheck this
+                        if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])* dm.dp(0.); //%todo-doublecheck this  
+                        else tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])  * dm.dp(0.);   //%todo-doublecheck this
                         loop_tangent++;
                     
                     }
@@ -348,7 +351,7 @@ void PotentialAvenger::run() {
                             iphimax = k;
                         }
                     }
-                    //phimax = segments[l].phipeak + dphi;//max(0.0,dphi);
+                    phimax = segments[l].phipeak;// + dphi;//max(0.0,dphi);
 
                     double phimaxY;
                     if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
@@ -433,9 +436,8 @@ void PotentialAvenger::run() {
         //check for nucleation
         vector<double> Yin;
         for (unsigned l = 0; l < Nelt; ++l)  Yin.push_back(0.5*E*e[l]*e[l]);
-        vector<double> YcVec(1,Yc);
         string elemOrNodal="elem";
-        checkFailureCriteria(t[i],x,phi,YcVec,elemOrNodal,Yin,false,false,2*h,segments);
+        checkFailureCriteria(t[i],x,phi,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments);//delete this 0.5*h rather than 2*h
 
         //enforce phi constraints - update segments
         analyzeDamage(x,phi,h,segments);
@@ -705,6 +707,7 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
     //failure if qty > criterion
 
     vector<double> margin;
+    vector<unsigned> index;
 
     assert(elemOrNodal.compare("elem") == 0 || elemOrNodal.compare("nodal") == 0);
     assert(absOrAsIs == false || absOrAsIs == true);
@@ -749,6 +752,7 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
                 xlist.push_back(0.5*(x[i]+x[i+1]));
             }
             margin.push_back(qtyc/criterion[i]);
+            index.push_back(i);
         }
         nextLoop: //jump to here if can't nucleate
         qtyc = 0;
@@ -769,10 +773,14 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
             double temp1 = xlist[index];
             xlist.clear(); xlist.push_back(temp1);
             margin.clear(); margin.push_back(marmax);
-            criterion[index] = criterion[index] * (1-h*1.0*sqrt(1/0.2))*(1-h*1.0*sqrt(1/0.2));
         }
         assert(xlist.size() <= 1);
     }
+
+    for (unsigned i = 0; i < xlist.size(); ++i) {
+        criterion[index[i]] *= (1-h*1.0*sqrt(1/0.2))*(1-h*1.0*sqrt(1/0.2));  //modify Yc at the location of nucleation by a factor alpha
+    }
+
     //nucleate list
     if (xlist.size() > 0) {
         vector<double> failvalueList = vector<double>(xlist.size(),failvalue);
