@@ -488,12 +488,15 @@ void PotentialAvenger::run() {
 
     double minfrag = L*2;
     double sumfrag = 0;
-    for (unsigned i = 0; i < nfrags[Ntim-1]/2; ++i) {
-        
-        double fragLen = fragment_list[i].length()*static_cast<double>(h);
+    for (unsigned i = 0; i < fragment_list.size(); ++i) {
+        double fragLen = fragment_list[i].length()*static_cast<double>(h) * 2.0;
+        if (fragment_list[i].begin() == 0) fragLen -= h;
+        if (fragment_list[i].end() == Nnod -1) fragLen -= h;
+        if (((fragment_list.size() % 2) == 0) || (fragment_list[i].begin() != 0)) {
+            fragLen /= 2.0;
+            sumfrag += fragLen;
+        }
 
-        if (((nfrags[Ntim-1] % 2) == 1) && (fragment_list[i].begin() == 0)) fragLen *= 2;
-    
         if (fragLen < minfrag) minfrag = fragLen;
 
         sumfrag += fragLen;
@@ -505,7 +508,7 @@ void PotentialAvenger::run() {
         }
     }
 
-    if (nfrags[Ntim-1] > 0) assert(fabs(sumfrag - L) < 0.5*h);
+    if (nfrags[Ntim-1] > 0) assert(fabs(sumfrag - L*2) < 0.5*h);
     printf("Final number of fragments: %i \nMinimum fragment length: %f \nFinal dissipated energy: %f \n",nfrags[Ntim-1],minfrag,dissip_energy);
 
     
