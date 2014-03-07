@@ -16,7 +16,7 @@ class Segment{
 
     public:
     Segment();
-    Segment(double xpeak, double phipeak, int slope, unsigned Nnod);
+    Segment(double xpeak, double phipeak, int slope);
     ~Segment();
 
     unsigned size();
@@ -30,7 +30,6 @@ class Segment{
     double xpeak;   //listmax
     double phipeak; //phimax
     double slope;
-    unsigned Nnod;
     void setPeak(const std::vector<double>& x, const std::vector<double>& phi);
     bool operator<(const Segment& in) const;
 
@@ -95,11 +94,10 @@ void Fragment::clear() {
     return;
 }
 
-Segment::Segment(double in1, double in2, int in3, unsigned in4) {
+Segment::Segment(double in1, double in2, int in3) {
     xpeak = in1;
     phipeak = in2;
     slope = in3;
-    Nnod = in4;
     indices.clear();
 };
 
@@ -111,8 +109,7 @@ double Segment::length() {
     unsigned a = begin();
     unsigned b = end();
     double diff = static_cast<double>(b-a+1);
-    if (a == 0) diff -= 0.5;
-    if (b == Nnod-1) diff -= 0.5;
+    //if (a == 0) diff -= 0.5;
     return diff;
 }
 

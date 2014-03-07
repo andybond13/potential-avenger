@@ -202,7 +202,7 @@ void PotentialAvenger::run() {
         phi[j] = (2*h-x[j])*(1-vbc)-vbc;
     }
 
-    Segment seg1 = Segment(x[0],phi[0],0,Nnod);
+    Segment seg1 = Segment(x[0],phi[0],0);
     seg1.indices.push_back(0);
     segments.push_back(seg1);
 
@@ -635,12 +635,12 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
         
         //create two new segments
         if (xnuc[j] > x[0]) {
-            Segment seg1 = Segment(xnuc[j]-delta*h*zero,phinuc[j]-delta*h*zero,-1,Nnod);
+            Segment seg1 = Segment(xnuc[j]-delta*h*zero,phinuc[j]-delta*h*zero,-1);
             seg1.indices.push_back(loc);
             newSegment.push_back(seg1);
         }
         if (xnuc[j] < x[x.size()-1]) {
-            Segment seg2 = Segment(xnuc[j]+(1-delta)*h*zero,phinuc[j]-(1-delta)*h*zero,1,Nnod);
+            Segment seg2 = Segment(xnuc[j]+(1-delta)*h*zero,phinuc[j]-(1-delta)*h*zero,1);
             seg2.indices.push_back(loc+1);
             newSegment.push_back(seg2);
         }
@@ -1216,9 +1216,13 @@ void PotentialAvenger::fragmentStats() {
 	// Sort the list in ascending order
     vector<double> fragLength(0);
     for (unsigned i = 0; i < fragment_list.size(); ++i) {
-        double fragLen = fragment_list[i].length()*static_cast<double>(h);
-        if (((fragment_list.size() % 2) == 1) && (fragment_list[i].begin() == 0)) fragLen *= 2;
-        else fragLength.push_back(fragLen);
+        double fragLen = fragment_list[i].length()*static_cast<double>(h) * 2.0;
+        if (fragment_list[i].begin() == 0) fragLen -= h;
+        if (fragment_list[i].end() == Nnod -1) fragLen -= h;
+        if (((fragment_list.size() % 2) == 0) || (fragment_list[i].begin() != 0)) {
+            fragLen /= 2.0;
+            fragLength.push_back(fragLen);
+        }
         fragLength.push_back(fragLen);
     }
 	sort(fragLength.begin(), fragLength.end());
