@@ -10,7 +10,7 @@
 using namespace std;
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 8);
+    assert(argc == 9);
 
     double strain_rate = atof(argv[1]);
     double ts_refine = atof(argv[2]);
@@ -19,13 +19,14 @@ int main(int argc, const char* argv[]) {
     double lc = atof(argv[5]);
     unsigned intOrder = atoi(argv[6]);
     unsigned printVTK = atoi(argv[7]);
+    int oneAtATime = atoi(argv[8]);
     string path = ".";
 
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, path);
     pa.run();
 }
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
@@ -33,6 +34,7 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     lc = in4;
     intOrder = in5;
     printVTK = in6;
+    oneAtATime = in7;
     _path = path + "/results";
 
     //make plot files
@@ -702,6 +704,8 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
     //failvalue      -what to call phi at localization zone if created - e.g. h
     //failure if qty > criterion
 
+    vector<double> margin;
+
     assert(elemOrNodal.compare("elem") == 0 || elemOrNodal.compare("nodal") == 0);
     assert(absOrAsIs == false || absOrAsIs == true);
     if (elemOrNodal.compare("nodal") == 0) {
@@ -744,9 +748,30 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
                 //assume middle of element
                 xlist.push_back(0.5*(x[i]+x[i+1]));
             }
+            margin.push_back(qtyc/criterion[i]);
         }
         nextLoop: //jump to here if can't nucleate
         qtyc = 0;
+    }
+
+
+    //limited to one nucleation per timestep - IF OneAtATime=true
+    if (oneAtATime) {
+        double marmax = 0;
+        unsigned index = 0;
+        if (xlist.size() > 0){
+            for (unsigned i = 0; i < xlist.size(); ++i) {
+                if (margin[i] > marmax) {
+                    marmax = margin[i];
+                    index = i;
+                }
+            }
+            double temp1 = xlist[index];
+            xlist.clear(); xlist.push_back(temp1);
+            margin.clear(); margin.push_back(marmax);
+            criterion[index] = criterion[index] * (1-h*1.0*sqrt(1/0.2))*(1-h*1.0*sqrt(1/0.2));
+        }
+        assert(xlist.size() <= 1);
     }
     //nucleate list
     if (xlist.size() > 0) {
