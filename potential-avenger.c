@@ -370,6 +370,8 @@ if (dm.dval(segments[l].phimin) == 1 && nbiter[i] == 1) goto next;
                     }
                     phimax = segments[l].phipeak;// + dphi;//max(0.0,dphi);
                     phimin = segments[l].phimin;
+if (phimin == phimax) goto next;
+
 
                     double phimaxY;
                     if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
@@ -379,7 +381,7 @@ if (dm.dval(segments[l].phimin) == 1 && nbiter[i] == 1) goto next;
                     if (iphimin == Nnod-1) phiminY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
                     else phiminY = 0.5*E*pow(e[iphimin],2);// 1/2*s(i,iphimax)*e(i,iphimax);
                     
-                    double YbarmYc = residu_Y/(dm.dval(phimax));
+                    double YbarmYc = residu_Y/(dm.dval(phimax)-dm.dval(phimin));
                     double oldresidu = residu;
                     residu = YbarmYc/Yc;
                     err_crit = fabs(residu-oldresidu);
@@ -452,6 +454,7 @@ if (dm.dval(segments[l].phimin) == 1 && nbiter[i] == 1) goto next;
                 }
             } //while
         
+            next:
             err_crit = 0.0;
             segments[l].setPeak(x,phi); //segments[l].phipeak += dphi; 
         } //for segments
