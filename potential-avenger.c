@@ -303,9 +303,18 @@ void PotentialAvenger::run() {
                     assert(pg.size() == wg.size());
                     if (phi[j] > 0 && phi[j+1] > 0) {
                         for (unsigned k = 0; k < pg.size(); ++k) {
-                            double philoc = pg[k]*phi[j] + (1-pg[k]) * phi[j+1];
-                            if (segments[l].slope == 1 && x[j+1] > segments[l].xpeak && k == 1) philoc = -1;    //if peak is within element, only integrate the side with the proper slope
-                            if (segments[l].slope == -1 && x[j] < segments[l].xpeak && k == 0) philoc = -1;     //if peak is within element, only integrate the side with the proper slope
+                            double philoc = 0;
+                            if (segments[l].slope == 1 && x[j+1] > segments[l].xpeak && x[j] < segments[l].xpeak) {//if peak is within element, only integrate the side with the proper slope
+                                double delta = segments[l].xpeak - x[j];
+                                assert(delta > 0); assert( delta < h);
+                                philoc = pg[k]*(phi[j] + delta) + (1-pg[k]) * phi[j+1];              //shift quadrature to interval of interest
+                            } else if (segments[l].slope == -1 && x[j+1] > segments[l].xpeak && x[j] < segments[l].xpeak) { //if peak is within element, only integrate the side with the proper slope
+                                double delta = segments[l].xpeak - x[j];
+                                assert(delta > 0); assert( delta < h);
+                                philoc = pg[k]*phi[j] + (1-pg[k]) * (phi[j] + delta);               //shift quadrature to interval of interest
+                            } else {
+                                philoc = pg[k]*phi[j] + (1-pg[k]) * phi[j+1];
+                            }
                             residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
                             tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
                         }
@@ -336,6 +345,8 @@ void PotentialAvenger::run() {
                     
                     }
                 }
+
+if (dm.dval(segments[l].phimin) == 1 && nbiter[i] == 1) goto next;
             
                 // law Ybar = Yc
                 if (1==1) {
@@ -344,25 +355,37 @@ void PotentialAvenger::run() {
                     if (l == segments.size()-1 && segments[l].end() == Nnod-1) flag = 0;
                     
                     double phimax = phi[sbegin];
+                    double phimin = phi[sbegin];
                     unsigned iphimax = sbegin;
+                    unsigned iphimin = sbegin;
                     for (unsigned k = sbegin; k <= send; ++k) {
                         if (phi[k] > phimax) {
                             phimax = phi[k];
                             iphimax = k;
                         }
+                        if (phi[k] < phimax) {
+                            phimin = phi[k];
+                            iphimin = k;
+                        }
                     }
                     phimax = segments[l].phipeak;// + dphi;//max(0.0,dphi);
+                    phimin = segments[l].phimin;
 
                     double phimaxY;
                     if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
                     else phimaxY = 0.5*E*pow(e[iphimax],2);// 1/2*s(i,iphimax)*e(i,iphimax);
+
+                    double phiminY;
+                    if (iphimin == Nnod-1) phiminY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
+                    else phiminY = 0.5*E*pow(e[iphimin],2);// 1/2*s(i,iphimax)*e(i,iphimax);
                     
                     double YbarmYc = residu_Y/(dm.dval(phimax));
                     double oldresidu = residu;
                     residu = YbarmYc/Yc;
                     err_crit = fabs(residu-oldresidu);
-                    double tangent = (tangent_Y + static_cast<double>(flag)*(phimaxY-Yc)*dm.dp(phimax)/2.0)/(Yc*dm.dval(phimax)) - ((1.0+static_cast<double>(flag)/2.0)*dm.dp(phimax)/pow(dm.dval(phimax),2)) * (YbarmYc/Yc);
-//        cout << " " << dphi << " : " << residu_Y << " , " << tangent_Y << "    |  " << tangent << " , " << phimax << " , " << segments[l].phipeak << " , " << dphi << endl;
+                    double tangent = (tangent_Y + (phiminY-Yc)*dm.dp(phimin) )/( Yc*( dm.dval(phimax)-dm.dval(phimin) ) ) - dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2) * (YbarmYc/Yc);
+                    if (flag) tangent = (tangent_Y + 0.5*(phiminY-Yc)*dm.dp(phimin) - 0.5*(phimaxY-Yc)*dm.dp(phimax) )/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - (dm.dp(phimax) - dm.dp(phimin) )/pow(dm.dval(phimax)-dm.dval(phimin),2) * (YbarmYc/Yc);
+                    //double tangent = (tangent_Y + static_cast<double>(flag)*(phimaxY-Yc[iphimax])*dm.dp(phimax)/2.0)/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - ((1.0+static_cast<double>(flag)/2.0)*dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2)) * (YbarmYc/Yc);
                     if (fabs(tangent) <= 1.e-10) {
                         err_crit = 0.; dphi = 0.;
                     } else {
@@ -531,8 +554,17 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
         vector<double> dloc(pg.size(),0.0);
         if (phi[j] > 0  && phi[j+1] > 0) {
             for (unsigned k = 0; k < pg.size(); ++k) {
-                double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
-                dloc[k] = dm.dval(philoc);
+                if (fabs(phi[j] - phi[j+1]) < h) {
+                    //there's a peak/anti-peak inside!
+                    double delta = 0.5*(h + phi[j+1] - phi[j]);
+                    //subdivide interval into two: [x1, x1+delta] [x1+delta, x2], effectively double number of integration points
+                    double philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phi[j] + delta);
+                    double philoc2 = pg[k] * (phi[j] + delta) + (1-pg[k]) * phi[j+1];
+                    dloc[k] = 0.5 * dm.dval(philoc1) + 0.5 * dm.dval(philoc2);
+                } else {
+                    double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
+                    dloc[k] = dm.dval(philoc);
+                }
                 s[j] += wg[k] * (1-dloc[k]) * E * e[j];
             }
         } else if  (phi[j] <= 0 && phi[j+1] <= 0) {
@@ -841,7 +873,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         phinew[i] = -min;
         if (x[i] < list_max[segphimin])     newSegment[2*segphimin].indices.push_back(i);
         if (x[i] >= list_max[segphimin])     newSegment[2*segphimin+1].indices.push_back(i);
-        assert(newSegment[segphimin].slope != 0);
+        //assert(newSegment[segphimin].slope != 0);
         phinew[i] = max(phinew[i],phi[i]);
     }
 
@@ -873,6 +905,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
         newSegment[i].setPeak(x,phinew);
+//assert(newSegment[i].phipeak > 0);
         tot_indices += newSegment[i].size();
         if (newSegment[i].phipeak> 0) assert(newSegment[i].indices.size() < x.size());
     }
