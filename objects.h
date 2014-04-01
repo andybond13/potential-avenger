@@ -28,7 +28,9 @@ class Segment{
     double length();
     std::vector<unsigned> indices;
     double xpeak;   //listmax
+    double xmin;
     double phipeak; //phimax
+    double phimin;
     double slope;
     void setPeak(const std::vector<double>& x, const std::vector<double>& phi);
     bool operator<(const Segment& in) const;
@@ -166,6 +168,21 @@ void Segment::setPeak(const std::vector<double>& x, const std::vector<double>& p
     assert(phimax > -2);
     this->xpeak = xmax;
     this->phipeak = phimax;
+
+    double phimin = phimax;
+    double xmin = xmax;
+    for (unsigned i = 0; i < indices.size(); ++i) {
+        unsigned index = indices[i];
+        if (phi[index] < phimin) {
+            phimin = phi[index];
+            xmin = x[index];
+        }
+    }
+    assert(phimin <= phimax);
+    this->xmin = xmin;
+    this->phimin = phimin;
+
+
     return;
 }
 
