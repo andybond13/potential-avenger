@@ -774,6 +774,7 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
         for (unsigned j = 0; j < newSegment.size(); ++j) {
             if (fabs(newSegment[j].xpeak-x[i]) < h) goto nextLoop; 
         }
+            if (newSegment[j].phipeak < 0) continue; 	//the null level-set can't be an impediment to nucleation
 
         if (absOrAsIs) {
             qtyc = fabs(qtyc);
