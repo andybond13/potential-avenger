@@ -18,7 +18,7 @@ public:
 //dyndimresttls.m
 void run();
 
-PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, std::string& path);
+PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, std::string& path);
 ~PotentialAvenger();
 
 
@@ -32,6 +32,7 @@ double lc;
 unsigned intOrder;
 unsigned printVTK;
 bool oneAtATime;
+double minOpenDist;
 
 //new variables
 std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile;

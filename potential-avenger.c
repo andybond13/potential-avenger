@@ -10,7 +10,7 @@
 using namespace std;
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 9);
+    assert(argc == 10);
 
     double strain_rate = atof(argv[1]);
     double ts_refine = atof(argv[2]);
@@ -20,13 +20,14 @@ int main(int argc, const char* argv[]) {
     unsigned intOrder = atoi(argv[6]);
     unsigned printVTK = atoi(argv[7]);
     int oneAtATime = atoi(argv[8]);
+    double minOpenDist = atof(argv[9]);
     string path = ".";
 
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, minOpenDist, path);
     pa.run();
 }
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
@@ -35,6 +36,7 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     intOrder = in5;
     printVTK = in6;
     oneAtATime = in7;
+    minOpenDist = in8;
     _path = path + "/results";
 
     //make plot files
@@ -766,17 +768,33 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
                 if (phi[i]>0 || phi[i+1]>0) continue;
             }
         }
-
         double qtyc = qty[i];
-
-        //can't fail if already nucleated
+        
+		//can't fail if already nucleated
         double h = x[i+1]-x[i];
+        double minOpen = max(h,minOpenDist);
         for (unsigned j = 0; j < newSegment.size(); ++j) {
-            if (fabs(newSegment[j].xpeak-x[i]) < h) goto nextLoop; 
-        }
             if (newSegment[j].phipeak < 0) continue; 	//the null level-set can't be an impediment to nucleation
+            
+			if (elemOrNodal.compare("nodal") == 0) {
+                if (fabs(newSegment[j].xpeak-x[i]) < minOpen) goto nextLoop;
+            } else {
+                double xavg = 0.5*(x[i] + x[i+1]);
+                if (fabs(newSegment[j].xpeak - xavg) < minOpen) goto nextLoop;
+            }
+		}
 
-        if (absOrAsIs) {
+		//compare against arelady accepted nucleation sites - xlist
+        for (unsigned j = 0; j < xlist.size(); ++j) {
+            if (elemOrNodal.compare("nodal") == 0) {
+                if (fabs(xlist[j]-x[i]) < minOpen) goto nextLoop;
+            } else {
+                double xavg = 0.5*(x[i] + x[i+1]);
+                if (fabs(xlist[j] - xavg) < minOpen) goto nextLoop;
+            }
+        }
+		
+		if (absOrAsIs) {
             qtyc = fabs(qtyc);
         }
 
