@@ -1171,11 +1171,6 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
     fprintf( pFile, "LOOKUP_TABLE default\n" );
     for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %12.3e \n", phi[i]);
     fprintf ( pFile, "\n" );
-
-    fprintf ( pFile, "\nSCALARS damage float\n" );
-    fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %12.3e \n", d[i]);
-    fprintf ( pFile, "\n" );
     fclose( pFile );
 }
 
@@ -1198,6 +1193,11 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile ) const {
     fprintf( pFile, "LOOKUP_TABLE default\n" );
     for ( unsigned i = 0; i < Nelt; i++ ) fprintf( pFile, " %12.3e \n", e[i]*s[i]*0.5/Yc);
     fprintf( pFile, "\n" );
+
+    fprintf ( pFile, "\nSCALARS damage float\n" );
+    fprintf( pFile, "LOOKUP_TABLE default\n" );
+    for ( unsigned i = 0; i < Nelt; i++ ) fprintf ( pFile, " %12.3e \n", d[i]);
+    fprintf ( pFile, "\n" );
 
     fclose( pFile );
 }
