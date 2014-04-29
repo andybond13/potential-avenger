@@ -146,6 +146,7 @@ void PotentialAvenger::run() {
     wg[1] = 0.5;
 
     d = vector<double>(Nelt,0);
+    d_1 = vector<double>(Nelt,0);
     d_max = vector<double>(Nelt,0);
     s = vector<double>(Nelt,0);
     e = vector<double>(Nelt,0);
@@ -666,18 +667,28 @@ void PotentialAvenger::calculateEnergies(const unsigned& i) {
         Y[j] = 0.5 * E * e[j] * e[j];
         YmYc[j] = Y[j]/Yc - 1;
         if (i > 0) {
-            dissip += h * Y[j] * (d[j] - d_1[j]);
-            kinetic_energy += 0.5 * h * rho * 0.5 *
+            dissip += h * A * Y[j] * (d[j] - d_1[j]);
+            kinetic_energy += 0.5 * h * A * rho * 0.5 *
                                 ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
             //ustat(i,j+1) = ustat(i,j) + h*s(0,Nelt)/(E*(1-d(i,j)));
         } else {
-            kinetic_energy += 0.5 * h * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
+            kinetic_energy += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
         }
-        energy[j] = h * Y[j] * (1 - d[j]);
+        energy[j] = h * A * Y[j] * (1.0 - d[j]);
     }
     //ustat(i,:) *= u(1,Nnod)/ustat(i,Nnod);
     for (unsigned j = 0; j < Nelt; ++j) Ystat[j] = 0.5 * E * pow((ustat[j+1] - ustat[j])/h,2);
     dissip_energy += dissip;
+
+    if (localOnly) {
+		dissip_energy -= dissip;
+		double oldDE = dissip_energy;
+		dissip_energy = 0;
+		//dissip_energy = sum(H(d)), H(d) = Yc*alpha*d^2 / (1 - alpha*d)
+		for (unsigned j = 0; j < Nelt; ++j) dissip_energy += Yc * alpha * d[j] * d[j] / (1.0 - alpha * d[j]) * h * A * 2.0;
+		dissip = dissip_energy - oldDE;
+	}
+
     strain_energy = sum (energy);
     if (i > 0) ext_energy += (a[Nnod-1] * m[Nnod-1] + s[Nnod-2] * A) * v[Nnod-1] * dt;
     else ext_energy = dissip + strain_energy + kinetic_energy;
@@ -1282,6 +1293,12 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile ) const {
     fprintf ( pFile, "\nSCALARS damage float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
     for ( unsigned i = 0; i < Nelt; i++ ) fprintf ( pFile, " %12.3e \n", d[i]);
+    fprintf ( pFile, "\n" );
+
+	
+    fprintf ( pFile, "\nSCALARS damageRate float\n" );
+    fprintf( pFile, "LOOKUP_TABLE default\n" );
+    for ( unsigned i = 0; i < Nelt; i++ ) fprintf ( pFile, " %12.3e \n", (d[i] - d_1[i]) / dt);
     fprintf ( pFile, "\n" );
 
     fclose( pFile );
