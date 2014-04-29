@@ -523,7 +523,7 @@ if (phimin == phimax) goto next;
     }//end time-loop
 
 
-    double minfrag = L*2;
+    double minfrag = _fMin;
     double sumfrag = 0;
     for (unsigned i = 0; i < fragment_list.size(); ++i) {
         double fragLen = fragment_list[i].length()*static_cast<double>(h) * 2.0;
@@ -784,6 +784,16 @@ void PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment>& newS
     nfrags = fragment_list.size()*2;
     if (dm.dval(phi[0]) < 1.0) {
         nfrags = nfrags - 1;
+    }
+
+    if (localOnly) {
+        nfrags = 1;
+        for (unsigned i = 0; i < Nelt; ++i) {
+			if (d[i] >= 1.0) {
+				nfrags += 2;
+				if (i == 0) nfrags -= 1;
+			}
+        }
     }
 };
 
@@ -1363,16 +1373,50 @@ void PotentialAvenger::fragmentStats() {
 	//Calculate Median
 	// Sort the list in ascending order
     vector<double> fragLength(0);
-    for (unsigned i = 0; i < fragment_list.size(); ++i) {
-        double fragLen = fragment_list[i].length()*static_cast<double>(h) * 2.0;
-        if (fragment_list[i].begin() == 0) fragLen -= h;
-        if (fragment_list[i].end() == Nnod -1) fragLen -= h;
-        if (((fragment_list.size() % 2) == 0) || (fragment_list[i].begin() != 0)) {
-            fragLen /= 2.0;
-            fragLength.push_back(fragLen);
-        }
-        fragLength.push_back(fragLen);
-    }
+    if (localOnly) {
+		double xbegin = 0;
+		bool firstElem = 0;
+		for (unsigned i = 0; i < Nelt; ++i) {
+         	if (d[i] >= 1.0) {
+				double xfrac = 0.5*(x[i]+x[i+1]);
+				if (xfrac - xbegin >= h)	{
+					if (xbegin == 0 && firstElem == false) {
+						fragLength.push_back(xfrac * 2.0);
+					} else {
+						firstElem = false;
+						fragLength.push_back(xfrac-xbegin);
+						fragLength.push_back(xfrac-xbegin);
+					}
+					xbegin = xfrac;
+				} else {
+					assert(i == 0);
+					firstElem = 1;
+				}
+			}
+
+		}
+		if (fragLength.size() == 0) {
+			fragLength.push_back(2.0);
+		} else {
+			fragLength.push_back(1.0 - xbegin);
+			fragLength.push_back(1.0 - xbegin);
+		} 	
+		double sum = 0;
+		for ( unsigned i = 0; i < fragLength.size(); ++i) sum += fragLength[i];
+    	assert(fabs(sum - 2.0) < 0.5 * h);
+
+	} else {
+	    for (unsigned i = 0; i < fragment_list.size(); ++i) {
+        	double fragLen = fragment_list[i].length()*static_cast<double>(h) * 2.0;
+    	    if (fragment_list[i].begin() == 0) fragLen -= h;
+	        if (fragment_list[i].end() == Nnod -1) fragLen -= h;
+        	if (((fragment_list.size() % 2) == 0) || (fragment_list[i].begin() != 0)) {
+    	        fragLen /= 2.0;
+ 	           fragLength.push_back(fragLen);
+        	}
+    	    fragLength.push_back(fragLen);
+	    }
+	}
 	sort(fragLength.begin(), fragLength.end());
 
 	if (fragLength.size() % 2 == 0) {
@@ -1428,12 +1472,45 @@ void PotentialAvenger::printHisto() {
     if (_numFrag > 1) {
 
         vector<double> fragLength(0);
-        for (unsigned i = 0; i < fragment_list.size(); ++i) {
-            double fragLen = fragment_list[i].length()*static_cast<double>(h);
-            if (((fragment_list.size() % 2) == 1) && (fragment_list[i].begin() == 0)) fragLen *= 2;
-            fragLength.push_back(fragLen);
-        }
-        	sort(fragLength.begin(), fragLength.end());
+        if (localOnly) {
+            double xbegin = 0;
+            bool firstElem = 0;
+            for (unsigned i = 0; i < Nelt; ++i) {
+                if (d[i] >= 1.0) {
+                    double xfrac = 0.5*(x[i]+x[i+1]);
+                    if (xfrac - xbegin >= h)    {
+                        if (xbegin == 0 && firstElem == false) {
+                            fragLength.push_back(xfrac * 2.0);
+                        } else {
+                            firstElem = false;
+                            fragLength.push_back(xfrac-xbegin);
+                            fragLength.push_back(xfrac-xbegin);
+                        }
+                        xbegin = xfrac;
+                    } else {
+                        assert(i == 0);
+                        firstElem = 1;
+                    }
+                }
+    
+            }
+            if (fragLength.size() == 0) {
+                fragLength.push_back(2.0);
+            } else {
+                fragLength.push_back(1.0 - xbegin);
+                fragLength.push_back(1.0 - xbegin);
+            }
+            double sum = 0;
+            for ( unsigned i = 0; i < fragLength.size(); ++i) sum += fragLength[i];
+            assert(fabs(sum - 2.0) < 0.5 * h);
+    	} else {
+            for (unsigned i = 0; i < fragment_list.size(); ++i) {
+                double fragLen = fragment_list[i].length()*static_cast<double>(h);
+                if (((fragment_list.size() % 2) == 1) && (fragment_list[i].begin() == 0)) fragLen *= 2;
+                fragLength.push_back(fragLen);
+            }
+		}
+        sort(fragLength.begin(), fragLength.end());
 
 		fragInvCDF.resize(2);
 		fragInvCDF[0].resize(1000);	//a length, from zero to the max. fragment size
@@ -1443,9 +1520,9 @@ void PotentialAvenger::printHisto() {
 		//Histogram - 25 bins
 		 double max = _fMax;	//size
 		//Step through fragment length list; increase count in the bin if fragment fits
-		for (unsigned k = 0; k < fragment_list.size(); k++){
+		for (unsigned k = 0; k < fragLength.size(); k++){
             double length = fragLength[k];
-            if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
+//            if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
 			if (length < max * 0.04) fHisto[0]++;
 			if ((length < max * 0.08) && (length >= max * 0.04)) fHisto[1]++;
 			if ((length < max * 0.12) && (length >= max * 0.08)) fHisto[2]++;
@@ -1483,7 +1560,7 @@ void PotentialAvenger::printHisto() {
 				//grab the 1-cdf data; 
 				unsigned count = 0;
 				j = max * (static_cast<double>(i) / 1000.0);	//from 0 to max length, 1000 increments
-				for (unsigned k = 0; k < fragment_list.size(); k++) {
+				for (unsigned k = 0; k < fragLength.size(); k++) {
                     double length = fragLength[k];
 					if (length > j) {		//if frag length greater than j, add to count
 						count += 1;
