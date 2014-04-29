@@ -18,7 +18,7 @@ public:
 //dyndimresttls.m
 void run();
 
-PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, std::string& path);
+PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, std::string& path);
 ~PotentialAvenger();
 
 
@@ -33,6 +33,8 @@ unsigned intOrder;
 unsigned printVTK;
 bool oneAtATime;
 double minOpenDist;
+double alpha;
+unsigned localOnly;
 
 //new variables
 std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile;
@@ -44,6 +46,7 @@ std::vector<double> x, t, xe, d, u, v, a, s, e, phi, Y, Ycv, YmYc, energy, m, d_
 std::vector<unsigned> nfrags;	
 DamageModel dm;
 std::vector<Fragment> fragment_list;
+std::vector<double> d_max;
 
 void printRunInfo();
 

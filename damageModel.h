@@ -30,6 +30,7 @@ int getType();
 double dval(double phi);
 double dp(double phi);
 double dpp(double phi);
+double phi(double dval);
 
 private:
 int type;

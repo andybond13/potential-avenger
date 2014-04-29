@@ -121,6 +121,32 @@ double DamageModel::dpp(double phi) {
     return -1;
 };
 
+double DamageModel::phi(double d) {
+
+   if (d < 0) assert(1 == 0);
+   if (d == 0) return 0;
+
+   switch (type) {
+   case 0:
+       if (d <= 0.5) {
+           return lc * sqrt(d/2.0);
+       } else {
+           return lc * (1.0 - sqrt( (1.0 - d)/2.0 ));
+       }
+   case 1:
+       return lc * d;
+   case 2:
+       return lc * (1.0 - sqrt(1.0 - d));
+   case 3:
+       return lc * (1.0 - pow(1.0 - d, 1./3.));
+   case 4:
+       return lc * d * d;
+   }
+   assert(1 == 0);
+   return -1;
+
+};
+
 double DamageModel::getLC() {
     return lc;
 };

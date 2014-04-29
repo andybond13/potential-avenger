@@ -1,7 +1,7 @@
 //potential-avenger.c
 //Andrew Stershic
 //DCML, Duke University
-//(c) 2013
+//(c) 2013, 2014
 
 #include <potential-avenger.h>
 #include <math.h>
@@ -10,7 +10,7 @@
 using namespace std;
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 10);
+    assert(argc == 12);
 
     double strain_rate = atof(argv[1]);
     double ts_refine = atof(argv[2]);
@@ -21,13 +21,15 @@ int main(int argc, const char* argv[]) {
     unsigned printVTK = atoi(argv[7]);
     int oneAtATime = atoi(argv[8]);
     double minOpenDist = atof(argv[9]);
+	double alpha = atof(argv[10]);
+    unsigned localOnly = atoi(argv[11]);
     string path = ".";
 
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, minOpenDist, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, minOpenDist, alpha, localOnly, path);
     pa.run();
 }
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
@@ -37,6 +39,8 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     printVTK = in6;
     oneAtATime = in7;
     minOpenDist = in8;
+	alpha = in9;
+    localOnly = in10;
     _path = path + "/results";
 
     //make plot files
@@ -142,6 +146,7 @@ void PotentialAvenger::run() {
     wg[1] = 0.5;
 
     d = vector<double>(Nelt,0);
+    d_max = vector<double>(Nelt,0);
     s = vector<double>(Nelt,0);
     e = vector<double>(Nelt,0);
     energy = vector<double>(Nelt,0);
@@ -534,70 +539,121 @@ if (phimin == phimax) goto next;
         sumfrag += fragLen;
     }
 
-    if (nfrags[Ntim-1] == 0) {
-        for (unsigned i = 0; i < segments.size(); ++i) {
-            if (segments[i].size() > 0) cout << dm.dval(segments[i].phipeak) << " , " << segments[i].phipeak << endl;
-        }
-    }
-
     if (nfrags[Ntim-1] > 0) assert(fabs(sumfrag - L*2) < 0.5*h);
     printf("Final number of fragments: %i \nMinimum fragment length: %f \nFinal dissipated energy: %f \n",nfrags[Ntim-1],minfrag,dissip_energy);
-
     
     //print histogram
     printHisto();
     return;
 };
 
-void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg) {
+void PotentialAvenger::calculateLevelSetGradient( vector<double>& gradPhi) {
+	//calculate the gradient of the levelset (local model). This will be used to see if the |gradPhi| > 1,
+	//in which case, a non-local zone will be inserted
+	assert(gradPhi.size() == Nelt);
+    gradPhi[0] = 0.0; //gradient between two elements middle
+	for (unsigned i = 1; i < Nelt; ++i) {
+		double phi = dm.phi(d[i]);
+        double phiM1 = dm.phi(d[i-1]);
+		gradPhi[i] = (phi - phiM1) / h;
+	}
+}
+
+vector<int> PotentialAvenger::checkInTLS(const vector<Segment>& segments) {
+	
+	vector<int> elem (Nelt, 0);
+	vector<int> nodes (Nnod,0);
+    //check nodes; 1 = in TLS zone, 0 = not
+	for (unsigned k = 0; k < segments.size(); ++k) {
+        if (segments[k].phipeak <= 0.0) continue;
+        for (unsigned j = 0; j < segments[k].indices.size(); ++j) {
+			nodes[segments[k].indices[j]] = 1;
+        }
+	}
+assert(elem.size() == inTLS.size() );
+    //check elements based on node results
+    for (unsigned k = 0; k < Nelt; ++k) {
+        //if both nodes are not in TLS zones, then element is not in TLS zone; if one or both are in, then element is in
+        if (nodes[k] == 0 && nodes[k+1] == 0) elem[k] = 0;
+        else elem[k] = 1;
+    }
+    return elem;
+}
+
+void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg, const vector<int>& inTLS) {
+
+	//if in local, clear phi
+    for (unsigned j = 0; j < Nnod; ++j)	phi[j] = 0;
+
+
     for (unsigned j = 0; j < Nelt; ++j) {
+   		if (inTLS[j] == 1 && localOnly == 0) { 	//in TLS: use non-local damage model
+	        assert(pg.size() == wg.size());
+	
+	        s[j] = 0;
+	        e[j] = (u[j+1] - u[j])/h;
+  	    	vector<double> dloc(pg.size(),0.0);
+    	    if (phi[j] > 0  && phi[j+1] > 0) {
+        	    for (unsigned k = 0; k < pg.size(); ++k) {
+            	    if (fabs(phi[j] - phi[j+1]) < h) {
+                	    //there's a peak/anti-peak inside!
+                    	double delta = 0.5*(h + phi[j+1] - phi[j]);
+	                    //subdivide interval into two: [x1, x1+delta] [x1+delta, x2], effectively double number of integration points
+    	                double philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phi[j] + delta);
+        	            double philoc2 = pg[k] * (phi[j] + delta) + (1-pg[k]) * phi[j+1];
+            	        dloc[k] = 0.5 * dm.dval(philoc1) + 0.5 * dm.dval(philoc2);
+                	} else {
+	                    double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
+    	                dloc[k] = dm.dval(philoc);
+        	        }
+            	    s[j] += wg[k] * (1-dloc[k]) * E * e[j];
+	            }
+    	    } else if  (phi[j] <= 0 && phi[j+1] <= 0) {
+        	    s[j] = E * e[j];
+	        } else if  (phi[j] > 0 && phi[j+1] <= 0) {
+    	        double delta = fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1]));
+        	    double sloc = 0;
+            	for (unsigned k = 0; k < 2; ++k) {
+                	double philoc = pg[k] * phi[j];
+	                dloc[k] = dm.dval(philoc);
+    	            sloc += wg[k] * (1-dloc[k]) * E * e[j];
+        	    }
+            	s[j] = delta *  sloc +  (1-delta) * E * e[j];
+	        } else if (phi[j] <= 0 && phi[j+1] > 0) {
+    	        double delta = fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1]));
+        	    double sloc = 0;
+            	for (unsigned k = 0; k < 2; ++k) {
+                	double philoc = pg[k] * phi[j+1];
+	                dloc[k] = dm.dval(philoc);
+    	            sloc += wg[k] * (1-dloc[k]) * E * e[j];
+        	    }
+            	s[j] = delta *  sloc +  (1-delta) * E * e[j];
+	        }
 
-        assert(pg.size() == wg.size());
+    	    d[j] = 0;
+	        for (unsigned k = 0; k < pg.size(); ++k) {
+    	        d[j] += wg[k] * dloc[k];
+        	}
+            if (d[j] > d_max[j]) d_max[j] = d[j];		//update maximum damage
+            assert(d[j] >= d_max[j]);
 
-        s[j] = 0;
-        e[j] = (u[j+1] - u[j])/h;
-        vector<double> dloc(pg.size(),0.0);
-        if (phi[j] > 0  && phi[j+1] > 0) {
-            for (unsigned k = 0; k < pg.size(); ++k) {
-                if (fabs(phi[j] - phi[j+1]) < h) {
-                    //there's a peak/anti-peak inside!
-                    double delta = 0.5*(h + phi[j+1] - phi[j]);
-                    //subdivide interval into two: [x1, x1+delta] [x1+delta, x2], effectively double number of integration points
-                    double philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phi[j] + delta);
-                    double philoc2 = pg[k] * (phi[j] + delta) + (1-pg[k]) * phi[j+1];
-                    dloc[k] = 0.5 * dm.dval(philoc1) + 0.5 * dm.dval(philoc2);
-                } else {
-                    double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
-                    dloc[k] = dm.dval(philoc);
-                }
-                s[j] += wg[k] * (1-dloc[k]) * E * e[j];
-            }
-        } else if  (phi[j] <= 0 && phi[j+1] <= 0) {
-            s[j] = E * e[j];
-        } else if  (phi[j] > 0 && phi[j+1] <= 0) {
-            double delta = fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1]));
-            double sloc = 0;
-            for (unsigned k = 0; k < 2; ++k) {
-                double philoc = pg[k] * phi[j];
-                dloc[k] = dm.dval(philoc);
-                sloc += wg[k] * (1-dloc[k]) * E * e[j];
-            }
-            s[j] = delta *  sloc +  (1-delta) * E * e[j];
-        } else if (phi[j] <= 0 && phi[j+1] > 0) {
-            double delta = fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1]));
-            double sloc = 0;
-            for (unsigned k = 0; k < 2; ++k) {
-                double philoc = pg[k] * phi[j+1];
-                dloc[k] = dm.dval(philoc);
-                sloc += wg[k] * (1-dloc[k]) * E * e[j];
-            }
-            s[j] = delta *  sloc +  (1-delta) * E * e[j];
-        }
-
-        d[j] = 0;
-        for (unsigned k = 0; k < pg.size(); ++k) {
-            d[j] += wg[k] * dloc[k];
-        }
+		} else { 		//inTLS == 0 : local damage model
+			double factor = sqrt(2.0 * Yc / (E * e[j] * e[j]) ); 
+            //double factor = sqrt(8.0 * Yc * Yc - 2.0 * Yc * E * e[j] * e[j]) / (E * e[j] * e[j] - 4 * Yc);
+			double dee = (1.0 - fabs(factor)) / alpha;
+            if (dee < 0.0) //E * e[j] * e[j] < 2.0 * Yc) 
+				dee = 0.0;			//not damaged if Y < Yc
+            if (dee > 1.0)
+                dee = 1.0;
+            d[j] = dee;
+            if (dee > d_max[j]) d_max[j] = dee;		//update maximum damage
+			if (dee < d_max[j]) {dee = d_max[j]; d[j] = d_max[j];}		//damage cannot decrease
+            s[j] = E * (1.0 - dee) * e[j];
+			phi[j]						+= 0.5 * dm.phi(dee);	//give half to left node
+			phi[j+1]					+= 0.5 * dm.phi(dee);	//give half to right node
+            if (j == 0)			phi[j]	+= 0.5 * dm.phi(dee);	//if end, give 2 halfs to left node
+            if (j == Nelt - 1)	phi[j+1]+= 0.5 * dm.phi(dee);	//if end, give 2 halfs to right node
+		}
     }
     return;
 }
