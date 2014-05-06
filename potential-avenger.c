@@ -10,7 +10,7 @@
 using namespace std;
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 12);
+    assert(argc == 13);
 
     double strain_rate = atof(argv[1]);
     double ts_refine = atof(argv[2]);
@@ -23,13 +23,14 @@ int main(int argc, const char* argv[]) {
     double minOpenDist = atof(argv[9]);
 	double alpha = atof(argv[10]);
     unsigned localOnly = atoi(argv[11]);
+    unsigned visualizeCracks = atoi(argv[12]);
     string path = ".";
 
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, minOpenDist, alpha, localOnly, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, path);
     pa.run();
 }
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
@@ -41,6 +42,7 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     minOpenDist = in8;
 	alpha = in9;
     localOnly = in10;
+    visualizeCracks = in11;
     _path = path + "/results";
 
     //make plot files
@@ -1208,9 +1210,9 @@ void PotentialAvenger::printVtk ( const unsigned timStepNum ) const {
 
     // Print in the vtk file
     printHeader ( vtkFile );
-    printMesh ( vtkFile );
+    unsigned Ncell = printMesh ( vtkFile );
     printPointData ( vtkFile );
-    printCellData ( vtkFile );
+    printCellData ( vtkFile, Ncell );
 }
 
 void PotentialAvenger::printHeader ( const std::string& vtkFile ) const {
@@ -1223,7 +1225,7 @@ void PotentialAvenger::printHeader ( const std::string& vtkFile ) const {
     fclose( pFile );
 }
 
-void PotentialAvenger::printMesh ( const std::string& vtkFile ) const {
+unsigned PotentialAvenger::printMesh ( const std::string& vtkFile ) const {
     FILE * pFile;
     pFile = fopen( vtkFile.c_str(), "a" );
     fprintf ( pFile, "POINTS %d float\n", Nnod);
@@ -1232,16 +1234,28 @@ void PotentialAvenger::printMesh ( const std::string& vtkFile ) const {
         double y = 0.0;
         fprintf ( pFile, " %12.3e %12.3e %12.3e\n", xx, y, 0.0 );
     }
-    fprintf ( pFile, "\nCELLS %d %d\n", Nelt, 3*Nelt );
-    for ( unsigned i = 0; i < Nelt; i++ ) {
-        fprintf ( pFile, " %12d %12d %12d\n", 2, i, i+1 );
+
+    unsigned Ncell = 0;
+    if (visualizeCracks) {
+        for ( unsigned i = 0; i < Nelt; i++ ) {
+	    	if (d[i] < 1) Ncell++;
+    	} 
+    } else {
+        Ncell = Nelt;
     }
-    fprintf ( pFile, "\nCELL_TYPES %d\n", Nelt );
+
+    fprintf ( pFile, "\nCELLS %d %d\n", Ncell, 3*Ncell );
     for ( unsigned i = 0; i < Nelt; i++ ) {
-        fprintf ( pFile, " %12d\n", 3 );
+        if (d[i] < 1 && visualizeCracks) fprintf ( pFile, " %12d %12d %12d\n", 2, i, i+1 );
+    }
+    fprintf ( pFile, "\nCELL_TYPES %d\n", Ncell );
+    for ( unsigned i = 0; i < Nelt; i++ ) {
+        if (d[i] < 1 && visualizeCracks) fprintf ( pFile, " %12d\n", 3 );
     }
     fprintf ( pFile, "\n" );
     fclose( pFile );
+
+    return Ncell;
 }
 
 void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
@@ -1270,35 +1284,35 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
     fclose( pFile );
 }
 
-void PotentialAvenger::printCellData ( const std::string& vtkFile ) const {
+void PotentialAvenger::printCellData ( const std::string& vtkFile, const unsigned& Ncell ) const {
 
     FILE * pFile;
     pFile = fopen( vtkFile.c_str(), "a" );
-    fprintf( pFile, "CELL_DATA %d", Nelt );
+    fprintf( pFile, "CELL_DATA %d", Ncell );
     fprintf( pFile, "\nSCALARS stress float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) fprintf( pFile, " %12.3e \n", s[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf( pFile, " %12.3e \n", s[i]);
     fprintf( pFile, "\n" );
 
     fprintf( pFile, "\nSCALARS strain float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) fprintf( pFile, " %12.3e\n", e[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf( pFile, " %12.3e\n", e[i]);
     fprintf( pFile, "\n" );
 
     fprintf( pFile, "\nSCALARS Y/Yc float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) fprintf( pFile, " %12.3e \n", e[i]*s[i]*0.5/Yc);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf( pFile, " %12.3e \n", e[i]*s[i]*0.5/Yc);
     fprintf( pFile, "\n" );
 
     fprintf ( pFile, "\nSCALARS damage float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) fprintf ( pFile, " %12.3e \n", d[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf ( pFile, " %12.3e \n", d[i]);
     fprintf ( pFile, "\n" );
 
 	
     fprintf ( pFile, "\nSCALARS damageRate float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) fprintf ( pFile, " %12.3e \n", (d[i] - d_1[i]) / dt);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf ( pFile, " %12.3e \n", (d[i] - d_1[i]) / dt);
     fprintf ( pFile, "\n" );
 
     fclose( pFile );

@@ -18,7 +18,7 @@ public:
 //dyndimresttls.m
 void run();
 
-PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, std::string& path);
+PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, std::string& path);
 ~PotentialAvenger();
 
 
@@ -35,6 +35,7 @@ bool oneAtATime;
 double minOpenDist;
 double alpha;
 unsigned localOnly;
+unsigned visualizeCracks;
 
 //new variables
 std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile;
@@ -74,9 +75,9 @@ void display ( const unsigned timStepNumElas, const unsigned timStepNumFrac );
 
 void printVtk ( const unsigned timStepNum ) const;
 void printHeader ( const std::string& vtkFile ) const;
-void printMesh ( const std::string& vtkFile ) const;
+unsigned printMesh ( const std::string& vtkFile ) const;
 void printPointData ( const std::string& vtkFile ) const;
-void printCellData ( const std::string& vtkFile ) const;
+void printCellData ( const std::string& vtkFile, const unsigned& Ncell ) const;
 void printGlobalInfo () const;
 void printFrags ();
 void printSTheta ();
