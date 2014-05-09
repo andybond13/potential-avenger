@@ -1246,11 +1246,11 @@ unsigned PotentialAvenger::printMesh ( const std::string& vtkFile ) const {
 
     fprintf ( pFile, "\nCELLS %d %d\n", Ncell, 3*Ncell );
     for ( unsigned i = 0; i < Nelt; i++ ) {
-        if (d[i] < 1 && visualizeCracks) fprintf ( pFile, " %12d %12d %12d\n", 2, i, i+1 );
+        if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12d %12d %12d\n", 2, i, i+1 );
     }
     fprintf ( pFile, "\nCELL_TYPES %d\n", Ncell );
     for ( unsigned i = 0; i < Nelt; i++ ) {
-        if (d[i] < 1 && visualizeCracks) fprintf ( pFile, " %12d\n", 3 );
+        if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12d\n", 3 );
     }
     fprintf ( pFile, "\n" );
     fclose( pFile );
@@ -1291,28 +1291,28 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile, const unsigne
     fprintf( pFile, "CELL_DATA %d", Ncell );
     fprintf( pFile, "\nSCALARS stress float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf( pFile, " %12.3e \n", s[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", s[i]);
     fprintf( pFile, "\n" );
 
     fprintf( pFile, "\nSCALARS strain float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf( pFile, " %12.3e\n", e[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e\n", e[i]);
     fprintf( pFile, "\n" );
 
     fprintf( pFile, "\nSCALARS Y/Yc float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf( pFile, " %12.3e \n", e[i]*s[i]*0.5/Yc);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", e[i]*s[i]*0.5/Yc);
     fprintf( pFile, "\n" );
 
     fprintf ( pFile, "\nSCALARS damage float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf ( pFile, " %12.3e \n", d[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", d[i]);
     fprintf ( pFile, "\n" );
 
 	
     fprintf ( pFile, "\nSCALARS damageRate float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 && visualizeCracks) fprintf ( pFile, " %12.3e \n", (d[i] - d_1[i]) / dt);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", (d[i] - d_1[i]) / dt);
     fprintf ( pFile, "\n" );
 
     fclose( pFile );

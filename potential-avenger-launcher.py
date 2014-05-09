@@ -2,7 +2,7 @@
 import os
 
 #clear results
-command = "rm *.vtk"
+command = "rm results/vtkFiles/*.vtk"
 os.system(command)
 
 #define input arguments
