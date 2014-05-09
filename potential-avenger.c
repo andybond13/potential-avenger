@@ -219,6 +219,11 @@ void PotentialAvenger::run() {
     seg1.indices.push_back(0);
     segments.push_back(seg1);
 
+    //check to see which elements are in TLS zones
+    inTLS.assign(Nelt,0);
+    inTLSnode.assign(Nnod,0);
+    checkInTLS(segments,inTLS,inTLSnode);
+
     //calculate stresses
     calculateStresses(pg,wg);
 
@@ -277,7 +282,7 @@ void PotentialAvenger::run() {
         // we compute a = integral (Yn+1 - Yc) d' in the current non-local zone
         // then we compute b = (Yn+1-Yc) d' on the front
         // the shift in level set if the ratio of the two.
-
+        if (localOnly) goto noSegments;
         for (unsigned l = 0; l < segments.size(); ++l) {
             if (segments[l].size()==0) continue;//segments.erase(segments.begin()+l);
             unsigned sbegin = segments[l].begin();
@@ -467,13 +472,28 @@ if (phimin == phimax) goto next;
             next:
             err_crit = 0.0;
             segments[l].setPeak(x,phi); //segments[l].phipeak += dphi; 
+
         } //for segments
 
+        noSegments:
+
         //check for nucleation
-        vector<double> Yin;
-        for (unsigned l = 0; l < Nelt; ++l)  Yin.push_back(0.5*E*e[l]*e[l]);
-        string elemOrNodal="elem";
-        checkFailureCriteria(t[i],x,phi,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments);//delete this 0.5*h rather than 2*h
+        if (localOnly == 0) {
+	    	if (alpha == 0) {
+	    		//non-local-only model
+    	        vector<double> Yin;
+	            for (unsigned l = 0; l < Nelt; ++l)  Yin.push_back(0.5*E*e[l]*e[l]);
+    	        string elemOrNodal="elem";
+            	checkFailureCriteria(t[i],x,phi,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments);//delete this 0.5*h rather than 2*h
+    		} else {
+		    	//local / non-local hybrid model
+		    	vector<double> gradPhi(Nelt);
+		    	calculateLevelSetGradient(gradPhi);
+		    	string elemOrNodal = "elem";
+		    	vector<double> gradLimit(Nelt,1.0);
+		    	checkFailureCriteria(t[i],x,phi,gradLimit,elemOrNodal,gradPhi,true,false, 1.0*h, segments);
+		    }
+        }
 
         //enforce phi constraints - update segments
         analyzeDamage(x,phi,h,segments);
@@ -497,10 +517,14 @@ if (phimin == phimax) goto next;
             }
         }
 
-        //updating the stress
-        calculateStresses(pg,wg);
 
-        //acceleration
+        //check to see which elements are in TLS zones
+        checkInTLS(segments,inTLS,inTLSnode);
+        
+		//updating the stress
+        calculateStresses(pg,wg);
+        
+		//acceleration
         if (phi[0] <= lc) a[0] = 0;
         else a[0] =  A*s[0]/m[0];
         a[Nnod-1] = 0; //note: this is a constraint which was hidden. if free, it would be -s(i,Nnod)/m(j);
@@ -562,10 +586,10 @@ void PotentialAvenger::calculateLevelSetGradient( vector<double>& gradPhi) {
 	}
 }
 
-vector<int> PotentialAvenger::checkInTLS(const vector<Segment>& segments) {
+void PotentialAvenger::checkInTLS(const vector<Segment>& segments, vector<unsigned>& elem, vector<unsigned>& nodes) {
 	
-	vector<int> elem (Nelt, 0);
-	vector<int> nodes (Nnod,0);
+	elem.assign(Nelt, 0);
+	nodes.assign(Nnod,0);
     //check nodes; 1 = in TLS zone, 0 = not
 	for (unsigned k = 0; k < segments.size(); ++k) {
         if (segments[k].phipeak <= 0.0) continue;
@@ -573,24 +597,22 @@ vector<int> PotentialAvenger::checkInTLS(const vector<Segment>& segments) {
 			nodes[segments[k].indices[j]] = 1;
         }
 	}
-assert(elem.size() == inTLS.size() );
+//assert(elem.size() == inTLS.size() );
     //check elements based on node results
     for (unsigned k = 0; k < Nelt; ++k) {
         //if both nodes are not in TLS zones, then element is not in TLS zone; if one or both are in, then element is in
         if (nodes[k] == 0 && nodes[k+1] == 0) elem[k] = 0;
         else elem[k] = 1;
     }
-    return elem;
 }
 
-void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg, const vector<int>& inTLS) {
-
-	//if in local, clear phi
-    for (unsigned j = 0; j < Nnod; ++j)	phi[j] = 0;
-
-
+void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg) {
+	//if in local, clear phi (clear if not in TLS = clear all and copy if in TLS)
+    for (unsigned j = 0; j < Nnod; ++j) {
+        if (inTLSnode[j] == 0 && alpha > 0.0) phi[j] = 0;
+    }
     for (unsigned j = 0; j < Nelt; ++j) {
-   		if (inTLS[j] == 1 && localOnly == 0) { 	//in TLS: use non-local damage model
+   		if ((inTLS[j] == 1 && localOnly == 0) || alpha ==0.0 ) { 	//in TLS: use non-local damage model
 	        assert(pg.size() == wg.size());
 	
 	        s[j] = 0;
@@ -963,6 +985,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         int segphimin = -1;
         double min = 9999999999;
         for (unsigned k = 0; k < value_max.size(); ++k) {
+            if (value_max.size() > 1 && value_max[k] == 0.0) continue;
             double qty = -value_max[k] + fabs(x[i] - list_max[k]);
             if (qty < min) {
                 min = qty;
@@ -1006,9 +1029,8 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
         newSegment[i].setPeak(x,phinew);
-//assert(newSegment[i].phipeak > 0);
         tot_indices += newSegment[i].size();
-        if (newSegment[i].phipeak> 0) assert(newSegment[i].indices.size() < x.size());
+        if (newSegment[i].phipeak> 0 ) assert(newSegment[i].indices.size() <= x.size());
     }
 
     assert(tot_indices == x.size());
@@ -1281,6 +1303,12 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
     fprintf( pFile, "LOOKUP_TABLE default\n" );
     for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %12.3e \n", phi[i]);
     fprintf ( pFile, "\n" );
+    
+    fprintf ( pFile, "\nSCALARS inTLSnode int\n" );
+    fprintf( pFile, "LOOKUP_TABLE default\n" );
+    for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %u \n", inTLSnode[i]);
+    fprintf ( pFile, "\n" );
+    
     fclose( pFile );
 }
 
@@ -1314,6 +1342,11 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile, const unsigne
     fprintf( pFile, "LOOKUP_TABLE default\n" );
     for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", (d[i] - d_1[i]) / dt);
     fprintf ( pFile, "\n" );
+
+    fprintf( pFile, "\nSCALARS inTLS int\n");
+    fprintf( pFile, "LOOKUP_TABLE default\n");
+    for ( unsigned i = 0; i < Nelt; i++) if (d[i] < 1 || visualizeCracks == 0) fprintf(pFile, "%u \n", inTLS[i]);
+    fprintf( pFile, "\n");
 
     fclose( pFile );
 }

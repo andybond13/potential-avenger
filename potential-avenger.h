@@ -47,6 +47,8 @@ std::vector<double> x, t, xe, d, u, v, a, s, e, phi, Y, Ycv, YmYc, energy, m, d_
 std::vector<unsigned> nfrags;	
 DamageModel dm;
 std::vector<Fragment> fragment_list;
+std::vector<unsigned> inTLS;
+std::vector<unsigned> inTLSnode;
 std::vector<double> d_max;
 
 void printRunInfo();
@@ -65,6 +67,12 @@ void checkFailureCriteria(double t, const std::vector<double>& x, std::vector<do
 
 //analyzeDamage.m
 void analyzeDamage(const std::vector<double>& x, std::vector<double>& phi, const double h, std::vector<Segment>& newSegment);
+
+//calculate level-set gradient
+void calculateLevelSetGradient(std::vector<double>& gradPhi);
+
+//get list of which elements are in a TLS zone
+void checkInTLS(const std::vector<Segment>& segments, std::vector<unsigned>& elem, std::vector<unsigned>& node);
 
 void plotEnergies ();
 void plotFrags ();
