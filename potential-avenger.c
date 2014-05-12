@@ -184,6 +184,7 @@ void PotentialAvenger::run() {
     vector<unsigned> nbiter = vector<unsigned>(Ntim,0);
     nfrags = vector<unsigned>(Ntim,0);
     vector<Segment> segments;
+    nucleated = 0;
 
     m.assign(Nnod,rho*h*A);
     m[0] = m[0]/2; m[Nnod-1] = m[Nnod-1]/2;
@@ -488,10 +489,10 @@ if (phimin == phimax) goto next;
     		} else {
 		    	//local / non-local hybrid model
 		    	vector<double> gradPhi(Nelt);
-		    	calculateLevelSetGradient(gradPhi);
+		    	calculateLevelSetGradient(d_1, gradPhi);
 		    	string elemOrNodal = "elem";
 		    	vector<double> gradLimit(Nelt,1.0);
-		    	checkFailureCriteria(t[i],x,phi,gradLimit,elemOrNodal,gradPhi,true,false, 1.0*h, segments);
+		    	checkFailureCriteria(t[i],x,phi,gradLimit,elemOrNodal,gradPhi,true,true, 1.0*h, segments);
 		    }
         }
 
@@ -524,6 +525,7 @@ if (phimin == phimax) goto next;
 		//updating the stress
         calculateStresses(pg,wg);
         
+    for (unsigned j = 1; j < Nnod-1; ++j)  phi[j] = max(phi[j], phi_1[j]);
 		//acceleration
         if (phi[0] <= lc) a[0] = 0;
         else a[0] =  A*s[0]/m[0];
@@ -574,16 +576,17 @@ if (phimin == phimax) goto next;
     return;
 };
 
-void PotentialAvenger::calculateLevelSetGradient( vector<double>& gradPhi) {
+void PotentialAvenger::calculateLevelSetGradient( const vector<double>& dV, vector<double>& gradPhi) {
 	//calculate the gradient of the levelset (local model). This will be used to see if the |gradPhi| > 1,
 	//in which case, a non-local zone will be inserted
 	assert(gradPhi.size() == Nelt);
     gradPhi[0] = 0.0; //gradient between two elements middle
 	for (unsigned i = 1; i < Nelt; ++i) {
-		double phi = dm.phi(d[i]);
-        double phiM1 = dm.phi(d[i-1]);
-		gradPhi[i] = (phi - phiM1) / h;
+		double phiM = dm.phi(dV[i]);
+        double phiM1 = dm.phi(dV[i-1]);
+		gradPhi[i] = (phiM - phiM1) / h;
 	}
+    return;
 }
 
 void PotentialAvenger::checkInTLS(const vector<Segment>& segments, vector<unsigned>& elem, vector<unsigned>& nodes) {
@@ -591,12 +594,14 @@ void PotentialAvenger::checkInTLS(const vector<Segment>& segments, vector<unsign
 	elem.assign(Nelt, 0);
 	nodes.assign(Nnod,0);
     //check nodes; 1 = in TLS zone, 0 = not
-	for (unsigned k = 0; k < segments.size(); ++k) {
-        if (segments[k].phipeak <= 0.0) continue;
-        for (unsigned j = 0; j < segments[k].indices.size(); ++j) {
-			nodes[segments[k].indices[j]] = 1;
-        }
-	}
+    if (segments.size() > 1) {
+    	for (unsigned k = 0; k < segments.size(); ++k) {
+            if (segments[k].phipeak <= 0.0) continue;
+            for (unsigned j = 0; j < segments[k].indices.size(); ++j) {
+    			nodes[segments[k].indices[j]] = 1;
+            }
+    	}
+    }
 //assert(elem.size() == inTLS.size() );
     //check elements based on node results
     for (unsigned k = 0; k < Nelt; ++k) {
@@ -750,6 +755,7 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
         double h = 0;
         int loc = -1;
         double delta = 0;
+        nucleated++;
         
         for (unsigned i = 0; i < x.size()-1; ++i) {
             if ((xnuc[j] >= x[i]) && (xnuc[j] < x[i+1])) {
@@ -762,9 +768,11 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
         }
     
         assert(loc != -1);
-    
-        phi[loc] = phinuc[j] - delta*h;
-        phi[loc+1] = phinuc[j] - (1-delta)*h;
+   
+        double proposed1 = phinuc[j] - delta*h;
+        double proposed2 = phinuc[j] - (1-delta)*h;
+        phi[loc] = max(phi[loc], proposed1);
+        phi[loc+1] = max(phi[loc+1], proposed2);
         printf("crack nucleated, t = %f, x = %f \n",t,xnuc[j]);
         double zero = 0;
         
@@ -943,17 +951,18 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
     }
 };
 
-void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& phi, const double h, vector<Segment>& newSegment) {
+void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& phiV, const double h, vector<Segment>& newSegment) {
 
     //produce:
     //new phi based on distances - maxima
 
     //if all negative one, skip
     unsigned sum = 0;
-    for (unsigned i = 0; i < phi.size(); ++i) {
-        if (phi[i] > -1) sum++;
+    for (unsigned i = 0; i < phiV.size(); ++i) {
+        if (phiV[i] > -1) sum++;
     }
     if (sum == 0) return;
+    if (nucleated == 0) return;
 
     vector<double> list_max;
     vector<double> value_max;
@@ -998,7 +1007,11 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         if (x[i] < list_max[segphimin])     newSegment[2*segphimin].indices.push_back(i);
         if (x[i] >= list_max[segphimin])     newSegment[2*segphimin+1].indices.push_back(i);
         //assert(newSegment[segphimin].slope != 0);
-        phinew[i] = max(phinew[i],phi[i]);
+        if (phiV[i] > phinew[i]) {
+//            cout << "i = " << i << " shouldn't be in TLS: phi = " << phiV[i] << " , phinew = " << phinew[i] << endl;
+            removeList.push_back(i);
+        }
+        phinew[i] = max(phinew[i],phiV[i]);
     }
 
     //delete empty segments; set slope
@@ -1016,7 +1029,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
                 delList.push_back(i);
                 continue;
             }
-        }
+        } 
         if (phinew[newSegment[i].begin()] < phinew[newSegment[i].end()]) newSegment[i].slope = 1;
         else newSegment[i].slope = -1;
     }
@@ -1037,8 +1050,21 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 
     //return phinew as phi
     for (unsigned i = 0; i < phi.size(); ++i) {
-        phi[i] = phinew[i];
+        phiV[i] = phinew[i];
     }
+if (nucleated == 0) assert(nSegs == newSegment.size());
+    for (unsigned i = 0; i < removeList.size(); ++i) {
+        unsigned index = removeList[i];
+        for (unsigned j = 0; j < newSegment.size(); ++j) {
+            for (unsigned k = 0; k < newSegment[j].indices.size(); ++k) {
+				if (newSegment[j].indices[k] == index) {
+					newSegment[j].indices.erase(newSegment[j].indices.begin() + k);
+//					cout << "  removed index " << index << " from segment " << j << endl;
+					break;
+				}
+            }
+        }
+    } 
 };  
 
 void PotentialAvenger::printRunInfo() {

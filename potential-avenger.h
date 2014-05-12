@@ -50,6 +50,7 @@ std::vector<Fragment> fragment_list;
 std::vector<unsigned> inTLS;
 std::vector<unsigned> inTLSnode;
 std::vector<double> d_max;
+unsigned nucleated;
 
 void printRunInfo();
 
@@ -69,7 +70,7 @@ void checkFailureCriteria(double t, const std::vector<double>& x, std::vector<do
 void analyzeDamage(const std::vector<double>& x, std::vector<double>& phi, const double h, std::vector<Segment>& newSegment);
 
 //calculate level-set gradient
-void calculateLevelSetGradient(std::vector<double>& gradPhi);
+void calculateLevelSetGradient(const std::vector<double>& d, std::vector<double>& gradPhi);
 
 //get list of which elements are in a TLS zone
 void checkInTLS(const std::vector<Segment>& segments, std::vector<unsigned>& elem, std::vector<unsigned>& node);
