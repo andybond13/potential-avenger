@@ -10,7 +10,7 @@
 using namespace std;
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 13);
+    assert(argc == 14);
 
     double strain_rate = atof(argv[1]);
     double ts_refine = atof(argv[2]);
@@ -24,13 +24,14 @@ int main(int argc, const char* argv[]) {
 	double alpha = atof(argv[10]);
     unsigned localOnly = atoi(argv[11]);
     unsigned visualizeCracks = atoi(argv[12]);
+    unsigned fullCompression = atoi(argv[13]);
     string path = ".";
 
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, path);
     pa.run();
 }
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
@@ -43,6 +44,7 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
 	alpha = in9;
     localOnly = in10;
     visualizeCracks = in11;
+    fullCompression = in12;
     _path = path + "/results";
 
     //make plot files
@@ -667,6 +669,11 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
             if (d[j] > d_max[j]) d_max[j] = d[j];		//update maximum damage
             assert(d[j] >= d_max[j]);
 
+            if (fullCompression) {
+                //this makes compression fully in contact no matter what the damage
+                if (e[j] < 0) s[j] = e[j] * E;
+            }
+
 		} else { 		//inTLS == 0 : local damage model
 			double factor = sqrt(2.0 * Yc / (E * e[j] * e[j]) ); 
             //double factor = sqrt(8.0 * Yc * Yc - 2.0 * Yc * E * e[j] * e[j]) / (E * e[j] * e[j] - 4 * Yc);
@@ -679,6 +686,10 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
             if (dee > d_max[j]) d_max[j] = dee;		//update maximum damage
 			if (dee < d_max[j]) {dee = d_max[j]; d[j] = d_max[j];}		//damage cannot decrease
             s[j] = E * (1.0 - dee) * e[j];
+            if (fullCompression) {
+                //this makes compression fully in contact no matter what the damage
+                if (e[j] < 0) s[j] = e[j] * E;
+            }
 			phi[j]						+= 0.5 * dm.phi(dee);	//give half to left node
 			phi[j+1]					+= 0.5 * dm.phi(dee);	//give half to right node
             if (j == 0)			phi[j]	+= 0.5 * dm.phi(dee);	//if end, give 2 halfs to left node
@@ -985,7 +996,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     unsigned nSegs = newSegment.size();
     newSegment.clear();
     newSegment.resize(nSegs*2);
-
+    vector<unsigned> removeList;
 
     //re-define segments.indices and phi
     vector<double> phinew = vector<double>(phi.size(),-1);
@@ -1053,6 +1064,8 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         phiV[i] = phinew[i];
     }
 if (nucleated == 0) assert(nSegs == newSegment.size());
+
+   // need to remove not-in-TLS from segments 
     for (unsigned i = 0; i < removeList.size(); ++i) {
         unsigned index = removeList[i];
         for (unsigned j = 0; j < newSegment.size(); ++j) {
