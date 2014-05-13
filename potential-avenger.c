@@ -682,6 +682,10 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
 				dee = 0.0;			//not damaged if Y < Yc
             if (dee > 1.0)
                 dee = 1.0;
+            unsigned nodesInTLS = 0;
+            if (inTLSnode[j]) nodesInTLS++;
+            if (inTLSnode[j+1]) nodesInTLS++;
+            assert(nodesInTLS < 2);
             d[j] = dee;
             if (dee > d_max[j]) d_max[j] = dee;		//update maximum damage
 			if (dee < d_max[j]) {dee = d_max[j]; d[j] = d_max[j];}		//damage cannot decrease
@@ -1018,7 +1022,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         if (x[i] < list_max[segphimin])     newSegment[2*segphimin].indices.push_back(i);
         if (x[i] >= list_max[segphimin])     newSegment[2*segphimin+1].indices.push_back(i);
         //assert(newSegment[segphimin].slope != 0);
-        if (phiV[i] > phinew[i]) {
+        if (phiV[i] > phinew[i] && inTLSnode[i] == 0) {
 //            cout << "i = " << i << " shouldn't be in TLS: phi = " << phiV[i] << " , phinew = " << phinew[i] << endl;
             removeList.push_back(i);
         }
