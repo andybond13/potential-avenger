@@ -157,7 +157,7 @@ void PotentialAvenger::run() {
     energy = vector<double>(Nelt,0);
     Y = vector<double>(Nelt,0);
     YmYc = vector<double>(Nelt,0);
-    vector<double> Ycv(Nelt,Yc);
+    Ycv = vector<double>(Nelt,Yc);
     strain_energy = 0.0;
     kinetic_energy = 0.0;
     dissip_energy = 0.0;
@@ -174,12 +174,12 @@ void PotentialAvenger::run() {
     a = vector<double>(Nnod,0);
     phi = vector<double>(Nnod,0);
 
-    vector<double> phi_1 = vector<double>(Nnod,0);
-    vector<double> phi_2 = vector<double>(Nnod,0);
-    vector<double> phi_3 = vector<double>(Nnod,0);
-    vector<double> phi_4 = vector<double>(Nnod,0);
-    vector<double> phi_5 = vector<double>(Nnod,0);
-    vector<double> phi_6 = vector<double>(Nnod,0);
+    phi_1 = vector<double>(Nnod,0);
+    phi_2 = vector<double>(Nnod,0);
+    phi_3 = vector<double>(Nnod,0);
+    phi_4 = vector<double>(Nnod,0);
+    phi_5 = vector<double>(Nnod,0);
+    phi_6 = vector<double>(Nnod,0);
     vector<double> phidot;
     //vector<double> ddotbar(Ntim,0);
 
@@ -285,200 +285,7 @@ void PotentialAvenger::run() {
         // we compute a = integral (Yn+1 - Yc) d' in the current non-local zone
         // then we compute b = (Yn+1-Yc) d' on the front
         // the shift in level set if the ratio of the two.
-        if (localOnly) goto noSegments;
-        for (unsigned l = 0; l < segments.size(); ++l) {
-            if (segments[l].size()==0) continue;//segments.erase(segments.begin()+l);
-            unsigned sbegin = segments[l].begin();
-            unsigned send = segments[l].end();
-        
-            //skip if all negative
-            bool allNeg = true;
-            for (unsigned k = sbegin; k <= send; ++k) {
-                if (phi[k] != -1) {
-                    allNeg = false;
-                    break;
-                }
-            }
-            if (allNeg) continue;
-        
-            double err_crit = 1e15;
-            double dphi = 0;
-            nbiter[i] = 0;
-            double residu = 0;
-//cout << "int: [" << sbegin << "," << send<< "]  dmax = " << dm.dval(segments[l].phipeak) << "  phimax = " << segments[l].phipeak << "  ," << 
-//"  x= " << segments[l].xpeak << "   slope = " << segments[l].slope <<
-//endl;
-
-            if (segments[l].phipeak <= 0) continue;
-
-            while (err_crit > 1.e-6) {
-                nbiter[i]++;
-                double residu_Y = 0; double tangent_Y = 0;
-                unsigned loop_residu = 0;
-                unsigned loop_tangent = 0;
-                for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send,Nelt-2); ++j) {
-                    if (j < 0) continue;
-                    assert(pg.size() == wg.size());
-                    if (phi[j] > 0 && phi[j+1] > 0) {
-                        for (unsigned k = 0; k < pg.size(); ++k) {
-                            double philoc = 0;
-                            if (segments[l].slope == 1 && x[j+1] > segments[l].xpeak && x[j] < segments[l].xpeak) {//if peak is within element, only integrate the side with the proper slope
-                                double delta = segments[l].xpeak - x[j];
-                                assert(delta > 0); assert( delta < h);
-                                philoc = pg[k]*(phi[j] + delta) + (1-pg[k]) * phi[j+1];              //shift quadrature to interval of interest
-                            } else if (segments[l].slope == -1 && x[j+1] > segments[l].xpeak && x[j] < segments[l].xpeak) { //if peak is within element, only integrate the side with the proper slope
-                                double delta = segments[l].xpeak - x[j];
-                                assert(delta > 0); assert( delta < h);
-                                philoc = pg[k]*phi[j] + (1-pg[k]) * (phi[j] + delta);               //shift quadrature to interval of interest
-                            } else {
-                                philoc = pg[k]*phi[j] + (1-pg[k]) * phi[j+1];
-                            }
-                            residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
-                            tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
-                        }
-                        loop_residu++;
-                    } else if  (phi[j] > 0 && phi[j+1] <= 0) {
-                        double delta = h * fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
-                        for (unsigned k = 0; k < pg.size(); ++k) {
-                            double philoc = pg[k] * phi[j];
-                            residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
-                            tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
-                        }
-                        loop_residu++;
-                        if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])* dm.dp(0.);
-                        else tangent_Y += (0.5 * E * e[j+1] * e[j+1] - Ycv[j])  * dm.dp(0.);
-                        
-                        loop_tangent = loop_tangent + 1;
-                    } else if  (phi[j] <= 0 && phi[j+1] > 0) {
-                        double delta = h * fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
-                        for (unsigned k = 0; k < pg.size(); ++k) {
-                            double philoc = pg[k] * phi[j+1];
-                            residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
-                            tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
-                        }
-                        loop_residu++;
-                        if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])* dm.dp(0.); //%todo-doublecheck this  
-                        else tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])  * dm.dp(0.);   //%todo-doublecheck this
-                        loop_tangent++;
-                    
-                    }
-                }
-
-if (dm.dval(segments[l].phimin) == 1 && nbiter[i] == 1) goto next;
-            
-                // law Ybar = Yc
-                if (1==1) {
-                    int flag = 1; //0 is exterior (damage centered on edge of domain); 1 is interior
-                    if (l == 1 && segments[l].begin() == 0) flag = 0;
-                    if (l == segments.size()-1 && segments[l].end() == Nnod-1) flag = 0;
-                    
-                    double phimax = phi[sbegin];
-                    double phimin = phi[sbegin];
-                    unsigned iphimax = sbegin;
-                    unsigned iphimin = sbegin;
-                    for (unsigned k = sbegin; k <= send; ++k) {
-                        if (phi[k] > phimax) {
-                            phimax = phi[k];
-                            iphimax = k;
-                        }
-                        if (phi[k] < phimax) {
-                            phimin = phi[k];
-                            iphimin = k;
-                        }
-                    }
-                    phimax = segments[l].phipeak;// + dphi;//max(0.0,dphi);
-                    phimin = segments[l].phimin;
-if (phimin == phimax) goto next;
-
-
-                    double phimaxY;
-                    if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
-                    else phimaxY = 0.5*E*pow(e[iphimax],2);// 1/2*s(i,iphimax)*e(i,iphimax);
-
-                    double phiminY;
-                    if (iphimin == Nnod-1) phiminY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
-                    else phiminY = 0.5*E*pow(e[iphimin],2);// 1/2*s(i,iphimax)*e(i,iphimax);
-                    
-                    double YbarmYc = residu_Y/(dm.dval(phimax)-dm.dval(phimin));
-                    double oldresidu = residu;
-                    residu = YbarmYc/Yc;
-                    err_crit = fabs(residu-oldresidu);
-                    double tangent = (tangent_Y + (phiminY-Yc)*dm.dp(phimin) )/( Yc*( dm.dval(phimax)-dm.dval(phimin) ) ) - dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2) * (YbarmYc/Yc);
-                    if (flag) tangent = (tangent_Y + 0.5*(phiminY-Yc)*dm.dp(phimin) - 0.5*(phimaxY-Yc)*dm.dp(phimax) )/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - (dm.dp(phimax) - dm.dp(phimin) )/pow(dm.dval(phimax)-dm.dval(phimin),2) * (YbarmYc/Yc);
-                    //double tangent = (tangent_Y + static_cast<double>(flag)*(phimaxY-Yc[iphimax])*dm.dp(phimax)/2.0)/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - ((1.0+static_cast<double>(flag)/2.0)*dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2)) * (YbarmYc/Yc);
-                    if (fabs(tangent) <= 1.e-10) {
-                        err_crit = 0.; dphi = 0.;
-                    } else {
-                        dphi = - residu/tangent;
-                    }
-                }
-
-//cout << "dphi = " << dphi;
-                if (nbiter[i] > 50) {
-                    dphi = 0;
-                    //assert(1==0);
-                }
-            
-                if (isnan(dphi)) {
-                    dphi = 0;
-                    assert(1==0);                
-                }
-
-                for (unsigned j = sbegin; j <=send; ++j) {
-                    if (i > 5 && intOrder >= 6) {
-                        vector<double> w;
-                        w.push_back(60./147); w.push_back(360./147); w.push_back(-450./147); w.push_back(400./147);
-                        w.push_back(-225./147); w.push_back(72./147); w.push_back(-10./147); 
-                        vector<double> phihist;
-                        phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                        phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]); phihist.push_back(phi_5[j]);
-                        phihist.push_back(phi_6[j]);
-                        phi[j] = dotProduct(phihist,w);
-                    } else if (i > 4 && intOrder >= 5) {
-                        vector<double> w;
-                        w.push_back(60./137); w.push_back(300./137); w.push_back(-300./137); w.push_back(200./137);
-                        w.push_back(-75./137); w.push_back(12./137);
-                        vector<double> phihist;
-                        phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                        phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]); phihist.push_back(phi_5[j]);
-                        phi[j] = dotProduct(phihist,w);
-                    } else if (i > 3 && intOrder >= 4) {
-                        vector<double> w;
-                        w.push_back(12./25); w.push_back(48./25); w.push_back(-36./25); w.push_back(16./25);
-                        w.push_back(-3./25);
-                        vector<double> phihist;
-                        phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                        phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]);
-                        phi[j] = dotProduct(phihist,w);
-                    } else if (i > 2 && intOrder >= 3) {
-                        vector<double> w;
-                        w.push_back(6./11); w.push_back(18./11); w.push_back(-9./11); w.push_back(2./11);
-                        vector<double> phihist;
-                        phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                        phihist.push_back(phi_3[j]);
-                        phi[j] = dotProduct(phihist,w);
-                    } else if (i > 1 && intOrder >= 2) {
-                        vector<double> w;
-                        w.push_back(2./3); w.push_back(4./3); w.push_back(-1./3);
-                        vector<double> phihist;
-                        phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                        phi[j] = dotProduct(phihist,w);
-                    } else {
-                        phi[j] = phi_1[j] + dphi;
-                    }
-                    phi[j] = max(phi[j],phi_1[j]); //constraint: dphi >= 0
-                    //enforcing limit of level-set motion
-                    //phi[j] = min(phi_1[j]+h,phi[j]);
-                }
-            } //while
-        
-            next:
-            err_crit = 0.0;
-            segments[l].setPeak(x,phi); //segments[l].phipeak += dphi; 
-
-        } //for segments
-
-        noSegments:
+        if (localOnly == 0) updateLevelSet(i,nbiter,segments,pg,wg);
 
         //check for nucleation
         if (localOnly == 0) {
@@ -738,6 +545,7 @@ void PotentialAvenger::calculateEnergies(const unsigned& i) {
     else ext_energy = dissip + strain_energy + kinetic_energy;
     tot_energy = strain_energy + kinetic_energy + dissip_energy - ext_energy;
     max_energy = max(max(kinetic_energy,dissip_energy),strain_energy);
+    return;
 }
 
 std::string convertInt(unsigned number) {
@@ -754,6 +562,203 @@ std::string convertInt(unsigned number) {
     for (unsigned i=0;i<temp.length();i++)
         returnvalue+=temp[temp.length()-i-1];
     return returnvalue;
+}
+
+void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbiter, vector<Segment>& segments, const vector<double>& pg, const vector<double>& wg ) {
+    
+    for (unsigned l = 0; l < segments.size(); ++l) {
+        if (segments[l].size()==0) continue;//segments.erase(segments.begin()+l);
+        unsigned sbegin = segments[l].begin();
+        unsigned send = segments[l].end();
+        
+        //skip if all negative
+        bool allNeg = true;
+        for (unsigned k = sbegin; k <= send; ++k) {
+            if (phi[k] != -1) {
+                allNeg = false;
+                break;
+            }
+        }
+        if (allNeg) continue;
+        
+        double err_crit = 1e15;
+        double dphi = 0;
+        nbiter[i] = 0;
+        double residu = 0;
+//cout << "int: [" << sbegin << "," << send<< "]  dmax = " << dm.dval(segments[l].phipeak) << "  phimax = " << segments[l].phipeak << "  ," << 
+//"  x= " << segments[l].xpeak << "   slope = " << segments[l].slope <<
+//endl;
+
+        if (segments[l].phipeak <= 0) continue;
+
+        while (err_crit > 1.e-6) {
+            nbiter[i]++;
+            double residu_Y = 0; double tangent_Y = 0;
+            unsigned loop_residu = 0;
+            unsigned loop_tangent = 0;
+            for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send,Nelt-2); ++j) {
+                if (j < 0) continue;
+                assert(pg.size() == wg.size());
+                if (phi[j] > 0 && phi[j+1] > 0) {
+                    for (unsigned k = 0; k < pg.size(); ++k) {
+                        double philoc = 0;
+                        if (segments[l].slope == 1 && x[j+1] > segments[l].xpeak && x[j] < segments[l].xpeak) {//if peak is within element, only integrate the side with the proper slope
+                            double delta = segments[l].xpeak - x[j];
+                            assert(delta > 0); assert( delta < h);
+                            philoc = pg[k]*(phi[j] + delta) + (1-pg[k]) * phi[j+1];              //shift quadrature to interval of interest
+                        } else if (segments[l].slope == -1 && x[j+1] > segments[l].xpeak && x[j] < segments[l].xpeak) { //if peak is within element, only integrate the side with the proper slope
+                            double delta = segments[l].xpeak - x[j];
+                            assert(delta > 0); assert( delta < h);
+                            philoc = pg[k]*phi[j] + (1-pg[k]) * (phi[j] + delta);               //shift quadrature to interval of interest
+                        } else {
+                            philoc = pg[k]*phi[j] + (1-pg[k]) * phi[j+1];
+                        }
+                        residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
+                        tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
+                    }
+                    loop_residu++;
+                } else if  (phi[j] > 0 && phi[j+1] <= 0) {
+                    double delta = h * fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
+                    for (unsigned k = 0; k < pg.size(); ++k) {
+                        double philoc = pg[k] * phi[j];
+                        residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
+                        tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
+                    }
+                    loop_residu++;
+                    if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])* dm.dp(0.);
+                    else tangent_Y += (0.5 * E * e[j+1] * e[j+1] - Ycv[j])  * dm.dp(0.);
+                       
+                    loop_tangent = loop_tangent + 1;
+                } else if  (phi[j] <= 0 && phi[j+1] > 0) {
+                    double delta = h * fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
+                    for (unsigned k = 0; k < pg.size(); ++k) {
+                        double philoc = pg[k] * phi[j+1];
+                        residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dp(philoc);
+                        tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - Ycv[j]) * dm.dpp(philoc);
+                    }
+                    loop_residu++;
+                    if (delta < h) tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])* dm.dp(0.); //%todo-doublecheck this  
+                    else tangent_Y += (0.5 * E * e[j] * e[j] - Ycv[j])  * dm.dp(0.);   //%todo-doublecheck this
+                    loop_tangent++;
+                    
+                }
+            }
+
+if (dm.dval(segments[l].phimin) == 1 && nbiter[i] == 1) goto next;
+            
+            // law Ybar = Yc
+            if (1==1) {
+                int flag = 1; //0 is exterior (damage centered on edge of domain); 1 is interior
+                if (l == 1 && segments[l].begin() == 0) flag = 0;
+                if (l == segments.size()-1 && segments[l].end() == Nnod-1) flag = 0;
+                  
+                double phimax = phi[sbegin];
+                double phimin = phi[sbegin];
+                unsigned iphimax = sbegin;
+                unsigned iphimin = sbegin;
+                for (unsigned k = sbegin; k <= send; ++k) {
+                    if (phi[k] > phimax) {
+                        phimax = phi[k];
+                        iphimax = k;
+                    }
+                    if (phi[k] < phimax) {
+                        phimin = phi[k];
+                        iphimin = k;
+                    }
+                }
+                phimax = segments[l].phipeak;// + dphi;//max(0.0,dphi);
+                phimin = segments[l].phimin;
+if (phimin == phimax) goto next;
+
+
+                double phimaxY;
+                if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
+                else phimaxY = 0.5*E*pow(e[iphimax],2);// 1/2*s(i,iphimax)*e(i,iphimax);
+
+                double phiminY;
+                if (iphimin == Nnod-1) phiminY = 0.5*E*pow(e[Nelt-1],2); //1/2*s(i,Nelt)*e(i,Nelt);
+                else phiminY = 0.5*E*pow(e[iphimin],2);// 1/2*s(i,iphimax)*e(i,iphimax);
+                    
+                double YbarmYc = residu_Y/(dm.dval(phimax)-dm.dval(phimin));
+                double oldresidu = residu;
+                residu = YbarmYc/Yc;
+                err_crit = fabs(residu-oldresidu);
+                double tangent = (tangent_Y + (phiminY-Yc)*dm.dp(phimin) )/( Yc*( dm.dval(phimax)-dm.dval(phimin) ) ) - dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2) * (YbarmYc/Yc);
+                if (flag) tangent = (tangent_Y + 0.5*(phiminY-Yc)*dm.dp(phimin) - 0.5*(phimaxY-Yc)*dm.dp(phimax) )/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - (dm.dp(phimax) - dm.dp(phimin) )/pow(dm.dval(phimax)-dm.dval(phimin),2) * (YbarmYc/Yc);
+                //double tangent = (tangent_Y + static_cast<double>(flag)*(phimaxY-Yc[iphimax])*dm.dp(phimax)/2.0)/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - ((1.0+static_cast<double>(flag)/2.0)*dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2)) * (YbarmYc/Yc);
+                if (fabs(tangent) <= 1.e-10) {
+                    err_crit = 0.; dphi = 0.;
+                } else {
+                    dphi = - residu/tangent;
+                }
+            }
+
+//cout << "dphi = " << dphi;
+            if (nbiter[i] > 50) {
+                dphi = 0;
+                    //assert(1==0);
+            }
+            
+            if (isnan(dphi)) {
+                dphi = 0;
+                assert(1==0);                
+            }
+
+            for (unsigned j = sbegin; j <=send; ++j) {
+                if (i > 5 && intOrder >= 6) {
+                    vector<double> w;
+                    w.push_back(60./147); w.push_back(360./147); w.push_back(-450./147); w.push_back(400./147);
+                    w.push_back(-225./147); w.push_back(72./147); w.push_back(-10./147); 
+                    vector<double> phihist;
+                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
+                    phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]); phihist.push_back(phi_5[j]);
+                    phihist.push_back(phi_6[j]);
+                    phi[j] = dotProduct(phihist,w);
+                } else if (i > 4 && intOrder >= 5) {
+                    vector<double> w;
+                    w.push_back(60./137); w.push_back(300./137); w.push_back(-300./137); w.push_back(200./137);
+                    w.push_back(-75./137); w.push_back(12./137);
+                    vector<double> phihist;
+                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
+                    phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]); phihist.push_back(phi_5[j]);
+                    phi[j] = dotProduct(phihist,w);
+                } else if (i > 3 && intOrder >= 4) {
+                    vector<double> w;
+                    w.push_back(12./25); w.push_back(48./25); w.push_back(-36./25); w.push_back(16./25);
+                    w.push_back(-3./25);
+                    vector<double> phihist;
+                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
+                    phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]);
+                    phi[j] = dotProduct(phihist,w);
+                } else if (i > 2 && intOrder >= 3) {
+                    vector<double> w;
+                    w.push_back(6./11); w.push_back(18./11); w.push_back(-9./11); w.push_back(2./11);
+                    vector<double> phihist;
+                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
+                    phihist.push_back(phi_3[j]);
+                    phi[j] = dotProduct(phihist,w);
+                } else if (i > 1 && intOrder >= 2) {
+                    vector<double> w;
+                    w.push_back(2./3); w.push_back(4./3); w.push_back(-1./3);
+                    vector<double> phihist;
+                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
+                    phi[j] = dotProduct(phihist,w);
+                } else {
+                    phi[j] = phi_1[j] + dphi;
+                }
+                phi[j] = max(phi[j],phi_1[j]); //constraint: dphi >= 0
+                //enforcing limit of level-set motion
+                //phi[j] = min(phi_1[j]+h,phi[j]);
+            }
+        } //while
+        
+        next:
+        err_crit = 0.0;
+        segments[l].setPeak(x,phi); //segments[l].phipeak += dphi; 
+
+    } //for segments
+
+    return;
 }
 
 void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment>& newSegment){
