@@ -437,6 +437,7 @@ void PotentialAvenger::checkInTLS(const vector<Segment>& segments, vector<unsign
         if (nodes[k] == 0 && nodes[k+1] == 0) elem[k] = 0;
         else elem[k] = 1;
     }
+    return;
 }
 
 void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg) {
@@ -473,7 +474,7 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
 	        } else if  (phi[j] > 0 && phi[j+1] <= 0) {
     	        double delta = fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1]));
         	    double sloc = 0;
-            	for (unsigned k = 0; k < 2; ++k) {
+            	for (unsigned k = 0; k < pg.size(); ++k) {
                 	double philoc = pg[k] * phi[j];
 	                dloc[k] = dm.dval(philoc);
     	            sloc += wg[k] * (1-dloc[k]) * E * e[j];
@@ -482,7 +483,7 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
 	        } else if (phi[j] <= 0 && phi[j+1] > 0) {
     	        double delta = fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1]));
         	    double sloc = 0;
-            	for (unsigned k = 0; k < 2; ++k) {
+            	for (unsigned k = 0; k < pg.size(); ++k) {
                 	double philoc = pg[k] * phi[j+1];
 	                dloc[k] = dm.dval(philoc);
     	            sloc += wg[k] * (1-dloc[k]) * E * e[j];
@@ -858,8 +859,8 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
 			proposed2 = max(proposed2, dm.phi(d_1[loc]));
 			if (loc > 0) proposed1 = max(proposed1, dm.phi(d_1[loc-1]));	
 			if (loc > 0) proposed2 = max(proposed2, dm.phi(d_1[loc-1]));	
-			if (loc < Nnod-1) proposed1 = max(proposed1, dm.phi(d_1[loc+1]));	
-			if (loc < Nnod-1) proposed2 = max(proposed2, dm.phi(d_1[loc+1]));	
+			if (loc < (int)Nnod-1) proposed1 = max(proposed1, dm.phi(d_1[loc+1]));	
+			if (loc < (int)Nnod-1) proposed2 = max(proposed2, dm.phi(d_1[loc+1]));	
             phi[loc] = max(phi[loc], proposed1);
             phi[loc+1] = max(phi[loc+1], proposed2);
         }
@@ -1080,8 +1081,8 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     vector<unsigned> removeList;
 
     //re-define segments.indices and phi
-    vector<double> phinew = vector<double>(phi.size(),-1);
-    for (unsigned i = 0; i < phi.size(); ++i) {
+    vector<double> phinew = vector<double>(phiV.size(),-1);
+    for (unsigned i = 0; i < phiV.size(); ++i) {
         
         int segphimin = -1;
         double min = 9999999999;
