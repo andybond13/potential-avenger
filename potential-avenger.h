@@ -50,7 +50,7 @@ DamageModel dm;
 std::vector<Fragment> fragment_list;
 std::vector<unsigned> inTLS;
 std::vector<unsigned> inTLSnode;
-std::vector<double> d_max;
+std::vector<double> d_max,d_max_alt;
 unsigned nucleated;
 
 void printRunInfo();
@@ -59,7 +59,7 @@ void calculateEnergies(const unsigned& i);
 void calculateStresses(const std::vector<double>& pg, const std::vector<double>& wg);
 
 //nucleate.m
-void nucleate(double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment>& newSegment);
+void nucleate(double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment>& newSegment, const std::string& elemOrNodal);
 
 //findFragments.m
 void findFragments(DamageModel& dm, std::vector<Segment>& newSegment, const std::vector<double>& phi, unsigned& nfrags, std::vector<Fragment>& fragmentList);
@@ -78,6 +78,11 @@ void checkInTLS(const std::vector<Segment>& segments, std::vector<unsigned>& ele
 
 //update level set for nodes in TLS
 void updateLevelSet(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
+
+double H(const unsigned, const double);
+double dH(const unsigned, const double);
+
+void calculateDmaxAlt(const std::vector<double>& pg, const std::vector<double>& wg);
 
 void plotEnergies ();
 void plotFrags ();
