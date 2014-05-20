@@ -49,16 +49,20 @@ class Fragment{
     unsigned end();
     void add(Segment* in);
     void clear();
+    double localLength;
 
     private:
     std::vector<Segment*> fragSegs; 
 };
 
-Fragment::Fragment(){};
+Fragment::Fragment(){
+    localLength = 0.0;
+};
 
 Fragment::Fragment(const Fragment& f){
     //copy constructor
     fragSegs.clear();
+    localLength = f.localLength;
     for (unsigned i = 0; i < f.fragSegs.size(); ++i) fragSegs.push_back(f.fragSegs[i]);
 };
 
@@ -69,7 +73,7 @@ double Fragment::length() {
 
 
     for (unsigned i = 0; i < fragSegs.size(); ++i) len += fragSegs[i]->length(); 
-    return len;
+    return len + localLength;
 }
 
 unsigned Fragment::begin() {

@@ -899,18 +899,49 @@ void PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment>& newS
     sort(newSegment.begin(),newSegment.end());
 
     Fragment f = Fragment();
+
     for (unsigned i = 0; i < newSegment.size(); ++i) {
 
         if (newSegment[i].size() == 0) continue;
         f.add(&newSegment[i]);
         double phimax = newSegment[i].phipeak;
         double slope = newSegment[i].slope;
-//    cout << "i = " << i << " [" << newSegment[i].begin() << "," << newSegment[i].end() << "]  slope = " << slope << " dval_max = " << dm.dval(phimax) << endl;
         if ((slope == 1 && phimax >= lc-h) || newSegment[i].end()  == Nnod - 1) {
             fragment_list.push_back(f);
             f.clear(); f = Fragment();
         } else {}
             //cout << slope << " , " << dm.dval(phimax) << endl;
+    }
+
+    if (fragment_list.size() == 0) {
+        fragment_list.push_back(f);
+    }
+
+    //add local damage to fragments
+    for (unsigned i = 0; i < Nnod; ++i) {
+        if (!inTLSnode[i] && localOnly == 0) {
+            int mindistID = -1;
+            for (unsigned j = 0; j < fragment_list.size(); ++j) {
+                if (fragment_list.size() == 1) {
+                    mindistID = j; 
+				} else if (i >= fragment_list[j].begin() && i <= fragment_list[j].end() ) {
+					mindistID = j;
+				} else if (j == 0 && i <= fragment_list[j].end() ) {
+					mindistID = j;
+				} else if (i >= fragment_list[j].begin() && j + 1 == fragment_list.size() ) {
+					mindistID = j;
+				} else {
+				}
+            }
+			assert(mindistID >= 0);
+
+			//add length to segment
+		    fragment_list[mindistID].localLength +=  1.0;
+
+        }
+    }
+    for (unsigned i = 0; i < Nelt; ++i) {
+        assert(d_max_alt[i] < 1);
     }
     
     //calculate total number of fragments (removing symmetry simplification)
