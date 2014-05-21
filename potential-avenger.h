@@ -51,6 +51,7 @@ std::vector<Fragment> fragment_list;
 std::vector<unsigned> inTLS;
 std::vector<unsigned> inTLSnode;
 std::vector<double> d_max,d_max_alt;
+std::vector<double> gradPhi;
 unsigned nucleated;
 
 void printRunInfo();

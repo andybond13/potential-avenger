@@ -182,6 +182,7 @@ void PotentialAvenger::run() {
     phi_5 = vector<double>(Nnod,0);
     phi_6 = vector<double>(Nnod,0);
     vector<double> phidot;
+    gradPhi = vector<double>(Nnod,0.0);
     //vector<double> ddotbar(Ntim,0);
 
     vector<unsigned> nbiter = vector<unsigned>(Ntim,0);
@@ -354,6 +355,9 @@ void PotentialAvenger::run() {
 
         //calculate energies
         calculateEnergies(i);
+
+        //update gradient for printing
+		calculateLevelSetGradient(d, gradPhi);
 
 		//print the rest of the table/graph data
         if (printVTK != 0) if ( ( _Nt % printVTK) == 0 ) {printVtk(_Nt); cout << "*t = " << t[i] << endl;}
@@ -1459,6 +1463,11 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
     fprintf ( pFile, "\nSCALARS inTLSnode int\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
     for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %u \n", inTLSnode[i]);
+    fprintf ( pFile, "\n" );
+    
+    fprintf ( pFile, "\nSCALARS absGradPhi float\n" );
+    fprintf( pFile, "LOOKUP_TABLE default\n" );
+    for ( unsigned i = 0; i < Nnod; i++ ) fprintf ( pFile, " %12.3e \n", fabs(gradPhi[i]));
     fprintf ( pFile, "\n" );
     
     fclose( pFile );
