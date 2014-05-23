@@ -47,6 +47,8 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     fullCompression = in12;
     _path = path + "/results";
 
+    _numFrag = 0;    
+
     //make plot files
     printClean();
 	plotEnergies();
@@ -187,6 +189,7 @@ void PotentialAvenger::run() {
 
     vector<unsigned> nbiter = vector<unsigned>(Ntim,0);
     nfrags = vector<unsigned>(Ntim,0);
+    _numFrag = 0;
     vector<Segment> segments;
     nucleated = 0;
 
@@ -819,13 +822,16 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
         for (unsigned i = 0; i < x.size()-1; ++i) {
             if ((xnuc[j] >= x[i]) && (xnuc[j] < x[i+1])) {
                 loc = i;
-                h = x[i+1] - x[i];                
                 delta = (xnuc[j] - x[i])/h;
                 break;
             }
 
         }
-    
+        if (loc == -1 && xnuc[j] == 1.0) {
+			loc = Nnod - 1;
+			delta = 0.0;
+		}
+
         assert(loc != -1);
         double proposed1 = phinuc[j] - delta*h;
         double proposed2 = phinuc[j] - (1-delta)*h;
@@ -940,7 +946,8 @@ void PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment>& newS
 			assert(mindistID >= 0);
 
 			//add length to segment
-		    fragment_list[mindistID].localLength +=  1.0;
+		    if (i == Nnod-1) fragment_list[mindistID].localLength +=  0.5;
+		    else fragment_list[mindistID].localLength +=  1.0;
 
         }
     }
