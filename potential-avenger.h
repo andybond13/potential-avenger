@@ -64,6 +64,7 @@ void nucleate(double t, const std::vector<double>& x, std::vector<double>& phi, 
 
 //findFragments.m
 void findFragments(DamageModel& dm, std::vector<Segment>& newSegment, const std::vector<double>& phi, unsigned& nfrags, std::vector<Fragment>& fragmentList);
+std::vector<double> fragmentLength();
 
 //checkFailureCriteria.m
 void checkFailureCriteria(double t, const std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, std::string elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue, std::vector<Segment>& newSegment);
