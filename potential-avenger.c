@@ -113,7 +113,7 @@ double dotProduct(const vector<double> a, const vector<double> b) {
     return sum;
 }
 
-unsigned median(const vector<unsigned> in) {
+int median(const vector<int> in) {
     return in[(in.size()-1)/2];
 }
 
@@ -121,6 +121,11 @@ double sum(const vector<double> in) {
     return dotProduct(in,vector<double>(in.size(),1));
 }
 
+double sum(const vector<unsigned> in) {
+    unsigned result = 0;
+    for (unsigned i = 0; i < in.size(); ++i) result += in[i];
+    return result;
+}
 
 void PotentialAvenger::run() {
 
@@ -166,7 +171,7 @@ void PotentialAvenger::run() {
     dissip_energy = 0.0;
     ext_energy = 0.0;
     tot_energy = 0.0;
-    fragment_list.clear();
+    vector<Fragment*> fragment_list;
 
     //Matrix bpos = Matrix(Ntim, Nelt);
     //Matrix grad = Matrix(Ntim, Nelt);
@@ -190,7 +195,7 @@ void PotentialAvenger::run() {
     vector<unsigned> nbiter = vector<unsigned>(Ntim,0);
     nfrags = vector<unsigned>(Ntim,0);
     _numFrag = 0;
-    vector<Segment> segments;
+    vector<Segment*> segments;
     nucleated = 0;
 
     m.assign(Nnod,rho*h*A);
@@ -216,16 +221,19 @@ void PotentialAvenger::run() {
     double csr = strain_rate;
     bool vbc = true;
     for (unsigned j = 0; j < Nnod; ++j) v[j] = vbc*csr*x[j];
+    v[Nnod-1] = csr;
 
     for (unsigned j = 0; j < Nnod; ++j) {
-        u[j] = x[j] * ec * L * 0.999*(1-vbc);
-        ustat[j] = x[j] * ec * L * 0.999*(1-vbc);
-        phi[j] = (2*h-x[j])*(1-vbc)-vbc;
+        u[j] = 0.0;//x[j] * ec * L * 0.999*(1-vbc);
+        ustat[j] = 0.0;//x[j] * ec * L * 0.999*(1-vbc);
+        phi[j] = -1;//(2*h-x[j])*(1-vbc)-vbc;
     }
 
-    Segment seg1 = Segment(x[0],phi[0],0);
-    seg1.indices.push_back(0);
+    /*
+    Segment* seg1 = new Segment(x[0],phi[0],0);
+    seg1->indices.push_back(-1);
     segments.push_back(seg1);
+    */
 
     //check to see which elements are in TLS zones
     inTLS.assign(Nelt,0);
@@ -244,16 +252,16 @@ void PotentialAvenger::run() {
     analyzeDamage(x,phi,h,segments);
     unsigned len = 0;
     for (unsigned l = 0; l < segments.size(); ++l) {
-        if (segments[l].size() == 0) continue;
+        if (segments[l]->size() == 0) continue;
         len++;
     }
     phidot.resize(len);
 
     //print data to file
-    fragmentStats();
+    vector<double>fragLength = findFragments(dm, segments,phi,nfrags[0],fragment_list);
     calculateEnergies(0);
     if (printVTK != 0) printVtk(_Nt);
-    printFrags();
+    printFrags(fragLength);
     printGlobalInfo();
 
     //time-integration loop
@@ -314,14 +322,14 @@ void PotentialAvenger::run() {
 
         int index = -1;
         for (unsigned l = 0; l < segments.size(); ++l) {
-            if (segments[l].size() == 0) continue;
+            if (segments[l]->size() == 0) continue;
             index++;
             //median(segments[l]);
-            unsigned smid = median(segments[l].indices);
+            int smid = median(segments[l]->indices);
 
             len = 0;
             for (unsigned j = 0; j < segments.size(); ++j) {
-                if (segments[j].size() == 0) continue;
+                if (segments[j]->size() == 0) continue;
                 len++;
             }
             phidot.resize(len);
@@ -351,8 +359,8 @@ void PotentialAvenger::run() {
         for (unsigned j = 0; j < Nnod; ++j) v[j]= v[j] + 0.5*dt*a[j];
 
         //record number of fragments and quantities per fragment
-        fragment_list.clear();
-        findFragments(dm, segments,phi,nfrags[i],fragment_list);
+        fragLength.clear();
+        fragLength = findFragments(dm, segments,phi,nfrags[i],fragment_list);
         _numFrag = nfrags[i];
 
         //calculate energies
@@ -363,14 +371,12 @@ void PotentialAvenger::run() {
 
 		//print the rest of the table/graph data
         if (printVTK != 0) if ( ( _Nt % printVTK) == 0 ) {printVtk(_Nt); cout << "*t = " << t[i] << endl;}
-        fragmentStats();
-        printFrags();
+        printFrags(fragLength);
         printGlobalInfo();
 
     }//end time-loop
 
     //find fragment length total & minimum
-    vector<double> fragLength = fragmentLength(); 
     cout << " fragment lengths:" << endl;
     double minfrag = _fMin; 
 	double sumfrag = 0.0;
@@ -386,9 +392,25 @@ void PotentialAvenger::run() {
     printf("Final number of fragments: %i \nMinimum fragment length: %f \nFinal dissipated energy: %f \n",nfrags[Ntim-1],minfrag,dissip_energy);
     
     //print histogram
-    printHisto();
+    printHisto(fragLength);
+
+    //kill all segments and fragments
+    killSegments(segments);
+    killFragments(fragment_list);
     return;
 };
+
+void PotentialAvenger::killSegments(vector<Segment*>& seg) {
+    for (unsigned i = 0; i < seg.size(); ++i) delete seg[i];
+    seg.clear();
+    return;
+}
+
+void PotentialAvenger::killFragments(vector<Fragment*>& frag) {
+    for (unsigned i = 0; i < frag.size(); ++i) delete frag[i];
+    frag.clear();
+    return;
+}
 
 void PotentialAvenger::calculateDmaxAlt(const vector<double>& pg, const vector<double>& wg) {
     //calculate d_max_alt
@@ -421,16 +443,16 @@ void PotentialAvenger::calculateLevelSetGradient( const vector<double>& dV, vect
     return;
 }
 
-void PotentialAvenger::checkInTLS(const vector<Segment>& segments, vector<unsigned>& elem, vector<unsigned>& nodes) {
+void PotentialAvenger::checkInTLS(const vector<Segment*>& segments, vector<unsigned>& elem, vector<unsigned>& nodes) {
 	
 	elem.assign(Nelt, 0);
 	nodes.assign(Nnod,0);
     //check nodes; 1 = in TLS zone, 0 = not
     if (nucleated > 0) {
     	for (unsigned k = 0; k < segments.size(); ++k) {
-            if (segments[k].phipeak <= 0.0) continue;
-            for (unsigned j = 0; j < segments[k].indices.size(); ++j) {
-    			nodes[segments[k].indices[j]] = 1;
+            if (segments[k]->phipeak <= 0.0) continue;
+            for (unsigned j = 0; j < segments[k]->indices.size(); ++j) {
+    			nodes[segments[k]->indices[j]] = 1;
             }
     	}
     }
@@ -546,10 +568,10 @@ void PotentialAvenger::calculateEnergies(const unsigned& i) {
     kinetic_energy = 0.0;
 
     for (unsigned j = 0; j < Nelt; ++j) {
-        Y[j] = 0.5 * E * e[j] * e[j];
+        Y[j] = 0.5 * E * e[j] * e[j] - dH(j,d[j]);
         YmYc[j] = Y[j]/Yc - 1;
+        if (inTLS[j] == 1) dissip += h * A * Y[j] * (d[j] - d_1[j]);
         if (i > 0) {
-            dissip += h * A * Y[j] * (d[j] - d_1[j]);
             kinetic_energy += 0.5 * h * A * rho * 0.5 *
                                 ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
             //ustat(i,j+1) = ustat(i,j) + h*s(0,Nelt)/(E*(1-d(i,j)));
@@ -560,16 +582,9 @@ void PotentialAvenger::calculateEnergies(const unsigned& i) {
     }
     //ustat(i,:) *= u(1,Nnod)/ustat(i,Nnod);
     for (unsigned j = 0; j < Nelt; ++j) Ystat[j] = 0.5 * E * pow((ustat[j+1] - ustat[j])/h,2);
-    dissip_energy += dissip;
 
-    if (localOnly) {
-		dissip_energy -= dissip;
-		double oldDE = dissip_energy;
-		dissip_energy = 0;
-		//dissip_energy = sum(H(d)), H(d) = Yc*alpha*d^2 / (1 - alpha*d)
-		for (unsigned j = 0; j < Nelt; ++j) dissip_energy += H(j,d[j])  * h * A ; //TODO factor of 2 here works well for balance, but why?
-		dissip = dissip_energy - oldDE;
-	}
+	for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0) dissip += H(j,d[j])  * h * A ; //TODO factor of 2 here works well for balance, but why?
+	dissip_energy += dissip;
 
     strain_energy = sum (energy);
     if (i > 0) ext_energy += (a[Nnod-1] * m[Nnod-1] + s[Nnod-2] * A) * v[Nnod-1] * dt;
@@ -603,12 +618,12 @@ double PotentialAvenger::dH (const unsigned j, const double dee) {
     return (Ycv[j] * alpha * dee) * (2.0 - alpha * dee)/pow(1.0 - alpha * dee,2);
 }    
 
-void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbiter, vector<Segment>& segments, const vector<double>& pg, const vector<double>& wg ) {
+void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg ) {
     
     for (unsigned l = 0; l < segments.size(); ++l) {
-        if (segments[l].size()==0) continue;//segments.erase(segments.begin()+l);
-        unsigned sbegin = segments[l].begin();
-        unsigned send = segments[l].end();
+        if (segments[l]->size()==0) continue;//segments.erase(segments.begin()+l);
+        unsigned sbegin = segments[l]->begin();
+        unsigned send = segments[l]->end();
         
         //skip if all negative
         bool allNeg = true;
@@ -628,7 +643,7 @@ void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbit
 //"  x= " << segments[l].xpeak << "   slope = " << segments[l].slope <<
 //endl;
 
-        if (segments[l].phipeak <= 0) continue;
+        if (segments[l]->phipeak <= 0) continue;
 
         while (err_crit > 1.e-6) {
             nbiter[i]++;
@@ -641,12 +656,12 @@ void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbit
                 if (phi[j] > 0 && phi[j+1] > 0) {
                     for (unsigned k = 0; k < pg.size(); ++k) {
                         double philoc = 0;
-                        if (segments[l].slope == 1 && x[j+1] > segments[l].xpeak && x[j] < segments[l].xpeak) {//if peak is within element, only integrate the side with the proper slope
-                            double delta = segments[l].xpeak - x[j];
+                        if (segments[l]->slope == 1 && x[j+1] > segments[l]->xpeak && x[j] < segments[l]->xpeak) {//if peak is within element, only integrate the side with the proper slope
+                            double delta = segments[l]->xpeak - x[j];
                             assert(delta > 0); assert( delta < h);
                             philoc = pg[k]*(phi[j] + delta) + (1-pg[k]) * phi[j+1];              //shift quadrature to interval of interest
-                        } else if (segments[l].slope == -1 && x[j+1] > segments[l].xpeak && x[j] < segments[l].xpeak) { //if peak is within element, only integrate the side with the proper slope
-                            double delta = segments[l].xpeak - x[j];
+                        } else if (segments[l]->slope == -1 && x[j+1] > segments[l]->xpeak && x[j] < segments[l]->xpeak) { //if peak is within element, only integrate the side with the proper slope
+                            double delta = segments[l]->xpeak - x[j];
                             assert(delta > 0); assert( delta < h);
                             philoc = pg[k]*phi[j] + (1-pg[k]) * (phi[j] + delta);               //shift quadrature to interval of interest
                         } else {
@@ -683,13 +698,13 @@ void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbit
                 }
             }
 
-if (dm.dval(segments[l].phimin) == 1 && nbiter[i] == 1) goto next;
+if (dm.dval(segments[l]->phimin) == 1 && nbiter[i] == 1) goto next;
             
             // law Ybar = Yc
             if (1==1) {
                 int flag = 1; //0 is exterior (damage centered on edge of domain); 1 is interior
-                if (l == 1 && segments[l].begin() == 0) flag = 0;
-                if (l == segments.size()-1 && segments[l].end() == Nnod-1) flag = 0;
+                if (l == 1 && segments[l]->begin() == 0) flag = 0;
+                if (l == segments.size()-1 && segments[l]->end() == Nnod-1) flag = 0;
                   
                 double phimax = phi[sbegin];
                 double phimin = phi[sbegin];
@@ -705,8 +720,8 @@ if (dm.dval(segments[l].phimin) == 1 && nbiter[i] == 1) goto next;
                         iphimin = k;
                     }
                 }
-                phimax = segments[l].phipeak;// + dphi;//max(0.0,dphi);
-                phimin = segments[l].phimin;
+                phimax = segments[l]->phipeak;// + dphi;//max(0.0,dphi);
+                phimin = segments[l]->phimin;
 if (phimin == phimax) goto next;
 
 
@@ -793,14 +808,14 @@ if (phimin == phimax) goto next;
         
         next:
         err_crit = 0.0;
-        segments[l].setPeak(x,phi); //segments[l].phipeak += dphi; 
+        segments[l]->setPeak(x,phi); //segments[l].phipeak += dphi; 
 
     } //for segments
 
     return;
 }
 
-void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment>& newSegment, const std::string& elemOrNodal){
+void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal){
     //t      -time
     //x      -mesh
     //phi    -level-set calculated at this time-step
@@ -877,19 +892,19 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
         
         //create two new segments
         if (xnuc[j] > x[0]) {
-            Segment seg1 = Segment(xnuc[j]-delta*h*zero,phinuc[j]-delta*h*zero,-1);
-            seg1.indices.push_back(loc);
+            Segment* seg1 = new Segment(xnuc[j]-delta*h*zero,phinuc[j]-delta*h*zero,-1);
+            seg1->indices.push_back(loc);
             newSegment.push_back(seg1);
         }
         if (xnuc[j] < x[x.size()-1]) {
-            Segment seg2 = Segment(xnuc[j]+(1-delta)*h*zero,phinuc[j]-(1-delta)*h*zero,1);
-            seg2.indices.push_back(loc+1);
+            Segment* seg2 = new Segment(xnuc[j]+(1-delta)*h*zero,phinuc[j]-(1-delta)*h*zero,1);
+            seg2->indices.push_back(loc+1);
             newSegment.push_back(seg2);
         }
         //now that there has been nucleation, get rid of zero-slope segments
         vector<unsigned> delList;
         for (unsigned i = 0; i < newSegment.size(); ++i) {
-            if (newSegment[i].slope == 0 || newSegment[i].phipeak == -1) delList.push_back(i);
+            if (newSegment[i]->slope == 0 || newSegment[i]->phipeak == -1) delList.push_back(i);
         }
         while (delList.size() > 0) {
             unsigned index = delList[delList.size()-1]; 
@@ -900,25 +915,24 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
     }
 };
 
-void PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment>& newSegment, const std::vector<double>& phi, unsigned& nfrags, std::vector<Fragment>& fragment_list) {
-
+vector<double> PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment*>& newSegment, const std::vector<double>& phi, unsigned& nfrags, std::vector<Fragment*>& fragment_list) {
+    while(fragment_list.size() > 0) {Fragment* f = fragment_list.back(); delete f; fragment_list.pop_back();}
     fragment_list.clear();
 
-    sort(newSegment.begin(),newSegment.end());
+    sort(newSegment.begin(),newSegment.end(),compareSegments);
 
-    Fragment f = Fragment();
-
+    Fragment* f = new Fragment();
     for (unsigned i = 0; i < newSegment.size(); ++i) {
 
-        if (newSegment[i].size() == 0) continue;
-        f.add(&newSegment[i]);
-        double phimax = newSegment[i].phipeak;
-        double slope = newSegment[i].slope;
-        if ((slope >= 0 && phimax >= lc-h) || (newSegment[i].end()  == Nnod - 1) || (newSegment[i].slope == -1 && i == newSegment.size()-1) ) {
+        if (newSegment[i]->size() == 0) continue;
+        f->add(newSegment[i]);
+        double phimax = newSegment[i]->phipeak;
+        double slope = newSegment[i]->slope;
+        if ((slope >= 0 && phimax >= lc-h) || (newSegment[i]->end()  == Nnod - 1) || (newSegment[i]->slope <= 0 && i == newSegment.size()-1) ) {
             fragment_list.push_back(f);
-            f.clear(); f = Fragment();
-        } else {}
-            //cout << slope << " , " << dm.dval(phimax) << endl;
+            f = new Fragment();
+        } else {
+		}
     }
 
     if (fragment_list.size() == 0) {
@@ -932,11 +946,11 @@ void PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment>& newS
             for (unsigned j = 0; j < fragment_list.size(); ++j) {
                 if (fragment_list.size() == 1) {
                     mindistID = j; 
-				} else if (i >= fragment_list[j].begin() && i <= fragment_list[j].end() ) {
+				} else if ((int)i >= fragment_list[j]->begin() && i <= fragment_list[j]->end() ) {
 					mindistID = j;
-				} else if (j == 0 && i <= fragment_list[j].end() ) {
+				} else if (j == 0 && i <= fragment_list[j]->end() ) {
 					mindistID = j;
-				} else if (i >= fragment_list[j].begin() && j + 1 == fragment_list.size() ) {
+				} else if ((int)i >= fragment_list[j]->begin() && j + 1 == fragment_list.size() ) {
 					mindistID = j;
 				} else {
 				}
@@ -944,23 +958,23 @@ void PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment>& newS
             if (mindistID < 0) {
 				double mindist = 2.0*L;
                 for (unsigned j = 0; j < fragment_list.size(); ++j) {
-                    if ( fabs(x[fragment_list[j].begin()] - x[i]) < mindist ) {
-						mindist = fabs(x[fragment_list[j].begin()]-x[i]);
-						mindistID = fragment_list[j].begin();
+                    if ( fabs(x[fragment_list[j]->begin()] - x[i]) < mindist ) {
+						mindist = fabs(x[fragment_list[j]->begin()]-x[i]);
+						mindistID = j;//fragment_list[j]->begin();
 					}                        
-                    if ( fabs(x[fragment_list[j].end()] - x[i]) < mindist ) {
-						mindist = fabs(x[fragment_list[j].end()]-x[i]);
-						mindistID = fragment_list[j].end();
+                    if ( fabs(x[fragment_list[j]->end()] - x[i]) < mindist ) {
+						mindist = fabs(x[fragment_list[j]->end()]-x[i]);
+						mindistID = j;//fragment_list[j]->end();
 					}                        
                 }
                 
             }
 			assert(mindistID >= 0);
-
+			assert(mindistID < (int)fragment_list.size());
 			//add length to segment
-		    if (i == Nnod-1) fragment_list[mindistID].localLength +=  0.5;
-		    else fragment_list[mindistID].localLength +=  1.0;
-
+		    if (i == Nnod-1) fragment_list[mindistID]->localLength +=  0.5;
+		    else if (i == 0) fragment_list[mindistID]->localLength +=  0.5;
+		    else fragment_list[mindistID]->localLength +=  1.0;
         }
     }
     for (unsigned i = 0; i < Nelt; ++i) {
@@ -968,52 +982,105 @@ void PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment>& newS
     }
     
     //calculate total number of fragments (removing symmetry simplification)
-    vector<double> fragLength = fragmentLength(); 
-    nfrags = fragLength.size();   
+    vector<double> fragLength = fragmentLength(fragment_list); 
+    nfrags = fragLength.size();
+    fragmentStats(fragLength);   
 
-    return; 
+    return fragLength; 
 };
 
-vector<double> PotentialAvenger::fragmentLength() { 
+
+vector<double> PotentialAvenger::fragmentLength(vector<Fragment*>& fragment_list) { 
     vector<double> fragLength;
     vector<double> fragbegin;
     vector<double> fragend;
     for (unsigned i = 0; i < fragment_list.size(); ++i) {
-        double fragLen = fragment_list[i].length()*static_cast<double>(h) * 2.0;
-        if (fragment_list[i].begin() == 0) fragLen -= h;
-        if (fragment_list[i].end() == Nnod -1) fragLen -= h;
-        if (((fragment_list.size() % 2) == 0) || (fragment_list[i].begin() != 0)) {
+        double fragLen = fragment_list[i]->length()*static_cast<double>(h) * 2.0;
+        if ( ( ((i == 0) && (fragment_list[i]->begin() == 0)) || ((i > 0) && (fragment_list[i]->begin() > 0)) ) && (fragment_list[i]->end() > 0) ) {
             fragLen /= 2.0;
             fragLength.push_back(fragLen);
-            fragbegin.push_back(-static_cast<double>(fragment_list[i].end()));
-            fragend.push_back(-static_cast<double>(fragment_list[i].begin()));
-            fragbegin.push_back(static_cast<double>(fragment_list[i].begin()));
-            fragend.push_back(static_cast<double>(fragment_list[i].end()));
+			
+			double fend;
+            if (i == fragment_list.size() - 1) fend = static_cast<double>(Nnod)-1.0;
+			else fend = static_cast<double>(fragment_list[i]->end());
+
+			double fbegin;
+            if (i == 0) fbegin = 0.0;
+			else fbegin = static_cast<double>(fragment_list[i]->begin());
+ 
+			fragbegin.push_back(-fend); fragend.push_back(-fbegin);
+            fragbegin.push_back(fbegin); fragend.push_back(fend);
             fragLength.push_back(fragLen);
         } else {
         	fragLength.push_back(fragLen);
-        	fragbegin.push_back(-static_cast<double>(fragment_list[i].end()));
-        	fragend.push_back(static_cast<double>(fragment_list[i].end()));
+			double fend;
+            if (i == fragment_list.size() - 1) fend = static_cast<double>(Nnod)-1.0;
+			else fend = static_cast<double>(fragment_list[i]->end()); 			
+
+			fragbegin.push_back(-fend);
+        	fragend.push_back(fend);
 		}
     }
 
-	//need to subdivide fragments for local-damage fragments
-    for (unsigned j = 0; j < fragment_list.size(); ++j) {
-        for (unsigned i = fragment_list[j].begin(); i < fragment_list[j].end(); ++i) {
-        	if (inTLS[i] == 0 && d[i] == 1.0) {
+	//fill in fragments (will likely get split off later)
+	for (double i = -static_cast<double>(Nelt)+1.0; i < static_cast<double>(Nelt); ++i) {
+		int frag = -1;
+		int dist = Nelt*2;
+		int closest = -Nnod;
+		for (unsigned j = 0; j < fragLength.size(); ++j) {
+			if (i >= fragbegin[j] && i <= fragend[j]) frag = j;
+			else {
+				if (fabs(i - fragbegin[j]) < dist) {
+					dist = fabs(i - fragbegin[j]);
+					closest = j;
+				}
+				if (fabs(i - fragend[j]) < dist) {
+					dist = fabs(i - fragend[j]);
+					closest = j;
+				}
+
+			}
+		}
+		if (frag == -1) {
+			assert(closest >= 0);
+			double distA = fabs(i - fragbegin[closest]);
+			double distB = fabs(i - fragend[closest]);
+			if (distA > distB) fragend[closest] = i;
+			else fragbegin[closest] = i;
+		}
+	}
+
+	//re-calculate fragment lengths
+    double sumfrag = 0;
+    for (unsigned i = 0; i < fragLength.size(); ++i) {
+		fragLength[i] = h*(fragend[i] - fragbegin[i] + 1);
+		if (fragbegin[i] == 0.0) fragLength [i] -= 0.5*h;
+		if (fragend[i] == (double)Nnod-1) fragLength [i] -= 0.5*h;
+		if (fragbegin[i] == -(double)Nnod+1) fragLength [i] -= 0.5*h;
+		if (fragend[i] == 0.0 && fragbegin[i] != 0.0) fragLength [i] -= 0.5*h;
+		if (fragend[i] == 0.0 && fragbegin[i] == 0.0) fragLength [i] = h;
+	}
+    for (unsigned i = 0; i < fragLength.size(); ++i) sumfrag += fragLength[i];
+    assert(fabs(sumfrag - 2.0*L) < 0.25 * h);
+
+	//need to subdivide fragments for local-damage fragments (split)
+    for (unsigned i = 0; i < Nelt; ++i) {
+			if (d[i] != 1.0) continue;
+			if (inTLSnode[i] == 1 && inTLSnode[i+1] == 1) continue;
 				//on positive side
                 int foundSeg = -1;
 				for (unsigned k = 0; k < fragLength.size(); ++k) {
-					if ((double)i >= fragbegin[k] && (double)i <= fragend[k]) {
-						foundSeg = k;
+					if (static_cast<double>(i) >= fragbegin[k] && static_cast<double>(i) <= fragend[k]) {
+						foundSeg = static_cast<int>(k);
 						double original = fragLength[k];
-						double prop1 = i - fragbegin[k] + 0.5;
+						double prop1 = static_cast<double>(i) - fragbegin[k] + 0.5;
+						if ((fabs(prop1*h) < 0.5*h) || (fabs(prop1*h-original) < 0.5*h) )  goto postSplit;
                         fragLength[k] = prop1*h;
 						fragLength.push_back(original - prop1*h);
 						fragbegin[k] = fragbegin[k];
 						fragend.push_back(fragend[k]);
-						fragbegin.push_back( i + 0.5);
-						fragend[k] = i + 0.5;
+						fragbegin.push_back( static_cast<double>(i) + 0.5);
+						fragend[k] = static_cast<double>(i) + 0.5;
 						assert(prop1 > 0); assert(original - prop1*h > 0);
 					}
 				}
@@ -1022,28 +1089,34 @@ vector<double> PotentialAvenger::fragmentLength() {
 				//same, on negative side
                 foundSeg = -1;
                 for (unsigned k = 0; k < fragLength.size(); ++k) {
-                    if (-(double)i >= fragbegin[k]+1 && -(double)i <= fragend[k]) {
-                        foundSeg = k;
+                    if (-static_cast<double>(i) >= fragbegin[k]+1 && -static_cast<double>(i) <= fragend[k]) {
+                        foundSeg = static_cast<int>(k);
                         double original = fragLength[k];
-                        double prop1 = -(double)i - fragbegin[k] - 0.5;
+                        double prop1 = -static_cast<double>(i) - fragbegin[k] - 0.5;
+						if (fragbegin[k] == -static_cast<double>(i)-0.5) goto postSplit;
+                        if (-static_cast<double>(i) - 0.5 == fragend[k]) goto postSplit;
+
                         fragLength[k] = prop1*h;
                         fragLength.push_back(original - prop1*h);
                         fragbegin[k] = fragbegin[k];
                         fragend.push_back(fragend[k]);
-                        fragbegin.push_back( -(double)i - 0.5);
-                        fragend[k] = -(double)i - 0.5;
+                        fragbegin.push_back( -static_cast<double>(i) - 0.5);
+                        fragend[k] = -static_cast<double>(i) - 0.5;
                         assert(prop1 > 0); assert(original - prop1*h > 0);
                     }
                 }
                 assert(foundSeg >= 0);
-				
-			}
-        }
+                postSplit:			    
+ 				assert(0 == 0);	
     }
+
+    sumfrag = 0;
+    for (unsigned i = 0; i < fragLength.size(); ++i) sumfrag += fragLength[i];
+	assert(fabs(sumfrag - 2.0*L) < 0.5 * h);
 	return fragLength;
 };
 
-void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, const std::string elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue, std::vector<Segment>& newSegment){
+void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, const std::string elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue, std::vector<Segment*>& newSegment){
 
     //x              -mesh
     //phi            -level-set calculated at this time-step
@@ -1087,10 +1160,10 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
             if (nucleated == 0) continue;	// the null level-set can't be an impediment to nucleation		
             
 			if (elemOrNodal.compare("nodal") == 0) {
-                if (fabs(newSegment[j].xpeak-x[i]) < minOpen) goto nextLoop;
+                if (fabs(newSegment[j]->xpeak-x[i]) < minOpen) goto nextLoop;
             } else {
                 double xavg = 0.5*(x[i] + x[i+1]);
-                if (fabs(newSegment[j].xpeak - xavg) < minOpen) goto nextLoop;
+                if (fabs(newSegment[j]->xpeak - xavg) < minOpen) goto nextLoop;
             }
 		}
 
@@ -1154,7 +1227,7 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
     }
 };
 
-void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& phiV, const double h, vector<Segment>& newSegment) {
+void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& phiV, const double h, vector<Segment*>& newSegment) {
 
     //produce:
     //new phi based on distances - maxima
@@ -1178,16 +1251,18 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     if (newSegment.size() == 0) return;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
         //assert(newSegment[i].size() > 0);
-        list_max.push_back(newSegment[i].xpeak);
-        value_max.push_back(newSegment[i].phipeak);
-        slope.push_back(newSegment[i].slope);
-        newSegment[i].indices.clear();
+        list_max.push_back(newSegment[i]->xpeak);
+        value_max.push_back(newSegment[i]->phipeak);
+        slope.push_back(newSegment[i]->slope);
+        newSegment[i]->indices.clear();
     }
 
     //delete segments, make new ones
     unsigned nSegs = newSegment.size();
+	for (unsigned i = 0; i < nSegs; ++i) delete newSegment[i];
     newSegment.clear();
     newSegment.resize(nSegs*2);
+	for (unsigned i = 0; i < nSegs*2; ++i) newSegment[i] = new Segment(); 
     vector<unsigned> removeList;
 
     //re-define segments.indices and phi
@@ -1207,8 +1282,8 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         assert(segphimin > -1);
 
         phinew[i] = -min;
-        if (x[i] < list_max[segphimin])     newSegment[2*segphimin].indices.push_back(i);
-        if (x[i] >= list_max[segphimin])     newSegment[2*segphimin+1].indices.push_back(i);
+        if (x[i] < list_max[segphimin])     newSegment[2*segphimin]->indices.push_back(i);
+        if (x[i] >= list_max[segphimin])     newSegment[2*segphimin+1]->indices.push_back(i);
         //assert(newSegment[segphimin].slope != 0);
         if (phiV[i] > phinew[i] && inTLSnode[i] == 0) {
 //            cout << "i = " << i << " shouldn't be in TLS: phi = " << phiV[i] << " , phinew = " << phinew[i] << endl;
@@ -1219,11 +1294,11 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 
     // need to remove not-in-TLS from segments 
     for (unsigned i = 0; i < removeList.size(); ++i) {
-        unsigned index = removeList[i];
+        int index = removeList[i];
         for (unsigned j = 0; j < newSegment.size(); ++j) {
-            for (unsigned k = 0; k < newSegment[j].indices.size(); ++k) {
-                if (newSegment[j].indices[k] == index) {
-                    newSegment[j].indices.erase(newSegment[j].indices.begin() + k);
+            for (unsigned k = 0; k < newSegment[j]->indices.size(); ++k) {
+                if (newSegment[j]->indices[k] == index) {
+                    newSegment[j]->indices.erase(newSegment[j]->indices.begin() + k);
 //                  cout << "  removed index " << index << " from segment " << j << endl;
                     break;
                 }
@@ -1235,14 +1310,14 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     //delete empty segments; set slope
     vector<unsigned> delList;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
-        if (newSegment[i].size() == 0) {                            //delete empty
+        if (newSegment[i]->size() == 0) {                            //delete empty
             delList.push_back(i);        
             continue;
         }
 
-        if (phinew[newSegment[i].begin()] < phinew[newSegment[i].end()]) newSegment[i].slope = 1;
-        else if (phinew[newSegment[i].begin()] > phinew[newSegment[i].end()]) newSegment[i].slope = -1;
-        else newSegment[i].slope = 0;
+        if (phinew[newSegment[i]->begin()] < phinew[newSegment[i]->end()]) newSegment[i]->slope = 1;
+        else if (phinew[newSegment[i]->begin()] > phinew[newSegment[i]->end()]) newSegment[i]->slope = -1;
+        else newSegment[i]->slope = 0;
     }
     while (delList.size() > 0) {
         unsigned index = delList[delList.size()-1]; 
@@ -1252,9 +1327,9 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
-        newSegment[i].setPeak(x,phinew);
-        tot_indices += newSegment[i].size();
-        if (newSegment[i].phipeak> 0 ) assert(newSegment[i].indices.size() <= x.size());
+        newSegment[i]->setPeak(x,phinew);
+        tot_indices += newSegment[i]->size();
+        if (newSegment[i]->phipeak> 0 ) assert(newSegment[i]->indices.size() <= x.size());
     }
 
     assert(tot_indices + removeList.size() == x.size());
@@ -1271,13 +1346,13 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     while (flag == true) {
     flag = false;
         for (unsigned j = 0; j < newSegment.size(); ++j) {
-            if (newSegment[j].indices.size() <= 1) continue;
+            if (newSegment[j]->indices.size() <= 1) continue;
             // if not contiguous, split
-            if (newSegment[j].end() != newSegment[j].begin() + newSegment[j].indices.size() - 1) {
+            if (newSegment[j]->end() != newSegment[j]->begin() + newSegment[j]->indices.size() - 1) {
 				flag = true;
                 int loca = -1;
-                for (unsigned k = 1; k < newSegment[j].indices.size(); ++k) {
-                    if (newSegment[j].indices[k] != newSegment[j].indices[k-1] + 1) {
+                for (unsigned k = 1; k < newSegment[j]->indices.size(); ++k) {
+                    if (newSegment[j]->indices[k] != newSegment[j]->indices[k-1] + 1) {
 						loca = k;
 						break;
 					}
@@ -1286,13 +1361,13 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 				//move loca & later to new segment, erase from original
 				//Segment seg = Segment();
 				//newSegment.push_back(seg);
-				newSegment.push_back(Segment());
-				for (unsigned k = loca; k < newSegment[j].indices.size(); ++k) newSegment[newSegment.size()-1].indices.push_back(newSegment[j].indices[k]);
-				newSegment[newSegment.size()-1].setPeak(x,phinew);
-				newSegment[newSegment.size()-1].slope = newSegment[j].slope;
-				newSegment[j].indices.resize(loca);
+				newSegment.push_back(new Segment());
+				for (unsigned k = loca; k < newSegment[j]->indices.size(); ++k) newSegment[newSegment.size()-1]->indices.push_back(newSegment[j]->indices[k]);
+				newSegment[newSegment.size()-1]->setPeak(x,phinew);
+				newSegment[newSegment.size()-1]->slope = newSegment[j]->slope;
+				newSegment[j]->indices.resize(loca);
             }
-            assert(newSegment[j].end() == newSegment[j].begin() + newSegment[j].indices.size() - 1);
+            assert(newSegment[j]->end() == newSegment[j]->begin() + newSegment[j]->indices.size() - 1);
         }
     }
 
@@ -1630,7 +1705,7 @@ void PotentialAvenger::printGlobalInfo () const {
     }
 }
 
-void PotentialAvenger::printFrags () {
+void PotentialAvenger::printFrags (const vector<double>& fragLength) {
     double DSum = 0.0;
     for (unsigned i = 0; i < d.size(); ++i) DSum += d[i];
 
@@ -1649,8 +1724,8 @@ void PotentialAvenger::printFrags () {
 	fprintf( pFile, "%12.3f", _fSkew );
 	fprintf( pFile, "%12.3f", _fExKurtosis );
 	if (_numFrag <= 10){
-	    for (unsigned i = 0; i < fragment_list.size(); i++){
-		fprintf( pFile, "%12f", fragment_list[i].length() );
+	    for (unsigned i = 0; i < fragLength.size(); i++){
+		fprintf( pFile, "%12f", fragLength[i] );
 	    }
 	}
         fprintf( pFile, "\n" );
@@ -1681,9 +1756,9 @@ void PotentialAvenger::printSTheta () {
     }
 }
 
-void PotentialAvenger::fragmentStats() {
+void PotentialAvenger::fragmentStats(const vector<double>& fragLength) {
 
-    if (fragment_list.size() == 0) return;
+    if (fragLength.size() == 0) return;
 
 	//Initialize statistics of fragment length distribution
 	_fMean = 0;
@@ -1698,68 +1773,24 @@ void PotentialAvenger::fragmentStats() {
 	//If there are any fragments...
 	//Calculate Median
 	// Sort the list in ascending order
-    vector<double> fragLength(0);
-    if (localOnly) {
-		double xbegin = 0;
-		bool firstElem = 0;
-		for (unsigned i = 0; i < Nelt; ++i) {
-         	if (d[i] >= 1.0) {
-				double xfrac = 0.5*(x[i]+x[i+1]);
-				if (xfrac - xbegin >= h)	{
-					if (xbegin == 0 && firstElem == false) {
-						fragLength.push_back(xfrac * 2.0);
-					} else {
-						firstElem = false;
-						fragLength.push_back(xfrac-xbegin);
-						fragLength.push_back(xfrac-xbegin);
-					}
-					xbegin = xfrac;
-				} else {
-					assert(i == 0);
-					firstElem = 1;
-				}
-			}
-
-		}
-		if (fragLength.size() == 0) {
-			fragLength.push_back(2.0);
-		} else {
-			fragLength.push_back(1.0 - xbegin);
-			fragLength.push_back(1.0 - xbegin);
-		} 	
-		double sum = 0;
-		for ( unsigned i = 0; i < fragLength.size(); ++i) sum += fragLength[i];
-    	assert(fabs(sum - 2.0) < 0.5 * h);
-
-	} else {
-	    for (unsigned i = 0; i < fragment_list.size(); ++i) {
-        	double fragLen = fragment_list[i].length()*static_cast<double>(h) * 2.0;
-    	    if (fragment_list[i].begin() == 0) fragLen -= h;
-	        if (fragment_list[i].end() == Nnod -1) fragLen -= h;
-        	if (((fragment_list.size() % 2) == 0) || (fragment_list[i].begin() != 0)) {
-    	        fragLen /= 2.0;
- 	           fragLength.push_back(fragLen);
-        	}
-    	    fragLength.push_back(fragLen);
-	    }
-	}
-	sort(fragLength.begin(), fragLength.end());
+	vector<double> fragLengthSort = fragLength;
+    sort(fragLengthSort.begin(), fragLengthSort.end());
 
 	if (fragLength.size() % 2 == 0) {
         	//If even number, take average of two middle values
-		_fMed = ( fragLength[ (unsigned)(fragLength.size() * 0.5) ]
-			+ fragLength[ (unsigned)(fragLength.size() * 0.5) -1 ] ) * 0.5;
+		_fMed = ( fragLengthSort[ (unsigned)(fragLengthSort.size() * 0.5) ]
+			+ fragLengthSort[ (unsigned)(fragLengthSort.size() * 0.5) -1 ] ) * 0.5;
 	} else {
 		//If odd number, take middle value
-		_fMed = fragLength[ (fragLength.size() - 1) / 2 ];
+		_fMed = fragLengthSort[ (fragLengthSort.size() - 1) / 2 ];
 	}
 	//Calculate Max, Min, Range
-	_fMax = fragLength.back();
-	_fMin = fragLength.front();
+	_fMax = fragLengthSort.back();
+	_fMin = fragLengthSort.front();
 	_fRange = _fMax - _fMin;
 
 	//Calculate Mean
-	for (unsigned k = 0; k < fragLength.size(); k++){
+	for (unsigned k = 0; k < fragLengthSort.size(); k++){
 		//Sum of lengths
 		_fMean += fragLength[k];
 	}
@@ -1767,76 +1798,38 @@ void PotentialAvenger::fragmentStats() {
 	_fMean = _fMean / _numFrag;
 
 	//Calculate Std. Deviation
-	for (unsigned k = 0; k < fragLength.size(); k++){
+	for (unsigned k = 0; k < fragLengthSort.size(); k++){
 		//Sum of squared (lengths - means)
-		_fStDev += pow( (fragLength[k] - _fMean), 2);
+		_fStDev += pow( (fragLengthSort[k] - _fMean), 2);
 	}
 	_fStDev = sqrt( _fStDev / _numFrag ) ;
 
 	//Calculate Skew
-	for (unsigned k = 0; k < fragLength.size(); k++){
+	for (unsigned k = 0; k < fragLengthSort.size(); k++){
 		//Sum of squared (lengths - means)
-		_fSkew += pow( (fragLength[k] - _fMean), 3);
+		_fSkew += pow( (fragLengthSort[k] - _fMean), 3);
 	}
 	_fSkew = _fSkew / (_numFrag * pow(_fStDev,3) );
 
 	//Calculate Kurtosis
-	for (unsigned k = 0; k < fragLength.size(); k++){
+	for (unsigned k = 0; k < fragLengthSort.size(); k++){
 		//Sum of squared (lengths - means)
-		_fExKurtosis += pow( (fragLength[k] - _fMean), 4);
+		_fExKurtosis += pow( (fragLengthSort[k] - _fMean), 4);
 	}
 	_fExKurtosis = _fExKurtosis / (_numFrag * pow(_fStDev,4) ) - 3.0;
     return;
 }
 
 
-void PotentialAvenger::printHisto() {
+void PotentialAvenger::printHisto(const std::vector<double>& fragLength) {
     // Prints Histogram and scaled 1-cdf figure
     vector<vector<double> > fragInvCDF;
     vector<unsigned> fHisto;
+    vector<double> fragLengthSort = fragLength;
 
     if (_numFrag > 1) {
 
-        vector<double> fragLength(0);
-        if (localOnly) {
-            double xbegin = 0;
-            bool firstElem = 0;
-            for (unsigned i = 0; i < Nelt; ++i) {
-                if (d[i] >= 1.0) {
-                    double xfrac = 0.5*(x[i]+x[i+1]);
-                    if (xfrac - xbegin >= h)    {
-                        if (xbegin == 0 && firstElem == false) {
-                            fragLength.push_back(xfrac * 2.0);
-                        } else {
-                            firstElem = false;
-                            fragLength.push_back(xfrac-xbegin);
-                            fragLength.push_back(xfrac-xbegin);
-                        }
-                        xbegin = xfrac;
-                    } else {
-                        assert(i == 0);
-                        firstElem = 1;
-                    }
-                }
-    
-            }
-            if (fragLength.size() == 0) {
-                fragLength.push_back(2.0);
-            } else {
-                fragLength.push_back(1.0 - xbegin);
-                fragLength.push_back(1.0 - xbegin);
-            }
-            double sum = 0;
-            for ( unsigned i = 0; i < fragLength.size(); ++i) sum += fragLength[i];
-            assert(fabs(sum - 2.0) < 0.5 * h);
-    	} else {
-            for (unsigned i = 0; i < fragment_list.size(); ++i) {
-                double fragLen = fragment_list[i].length()*static_cast<double>(h);
-                if (((fragment_list.size() % 2) == 1) && (fragment_list[i].begin() == 0)) fragLen *= 2;
-                fragLength.push_back(fragLen);
-            }
-		}
-        sort(fragLength.begin(), fragLength.end());
+        sort(fragLengthSort.begin(), fragLengthSort.end());
 
 		fragInvCDF.resize(2);
 		fragInvCDF[0].resize(1000);	//a length, from zero to the max. fragment size
@@ -1846,8 +1839,8 @@ void PotentialAvenger::printHisto() {
 		//Histogram - 25 bins
 		 double max = _fMax;	//size
 		//Step through fragment length list; increase count in the bin if fragment fits
-		for (unsigned k = 0; k < fragLength.size(); k++){
-            double length = fragLength[k];
+		for (unsigned k = 0; k < fragLengthSort.size(); k++){
+            double length = fragLengthSort[k];
 //            if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
 			if (length < max * 0.04) fHisto[0]++;
 			if ((length < max * 0.08) && (length >= max * 0.04)) fHisto[1]++;
@@ -1886,8 +1879,8 @@ void PotentialAvenger::printHisto() {
 				//grab the 1-cdf data; 
 				unsigned count = 0;
 				j = max * (static_cast<double>(i) / 1000.0);	//from 0 to max length, 1000 increments
-				for (unsigned k = 0; k < fragLength.size(); k++) {
-                    double length = fragLength[k];
+				for (unsigned k = 0; k < fragLengthSort.size(); k++) {
+                    double length = fragLengthSort[k];
 					if (length > j) {		//if frag length greater than j, add to count
 						count += 1;
 					}
@@ -1909,9 +1902,8 @@ void PotentialAvenger::printHisto() {
 
 			//print raw fragment sizes to file
 			fprintf( pFile, "# Sizes: \n" );
-			for (unsigned k = 0; k < fragment_list.size(); k++){
-                double length = fragment_list[k].length();
-                if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
+			for (unsigned k = 0; k < fragLength.size(); k++){
+                double length = fragLength[k];
 				fprintf( pFile, "%12.3e \n", length );
 			}
 

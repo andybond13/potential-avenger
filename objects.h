@@ -20,20 +20,19 @@ class Segment{
     ~Segment();
 
     unsigned size();
-    unsigned begin();
-    unsigned begin() const;
+    int begin();
+    int begin() const;
     unsigned second();
     unsigned end();
     unsigned penult();
     double length();
-    std::vector<unsigned> indices;
+    std::vector<int> indices;
     double xpeak;   //listmax
     double xmin;
     double phipeak; //phimax
     double phimin;
     double slope;
     void setPeak(const std::vector<double>& x, const std::vector<double>& phi);
-    bool operator<(const Segment& in) const;
 
     private:
 };
@@ -45,7 +44,7 @@ class Fragment{
     ~Fragment();
     
     double length();
-    unsigned begin();
+    int begin();
     unsigned end();
     void add(Segment* in);
     void clear();
@@ -76,18 +75,20 @@ double Fragment::length() {
     return len + localLength;
 }
 
-unsigned Fragment::begin() {
+int Fragment::begin() {
     std::vector<unsigned> begins;
     for (unsigned i = 0; i < fragSegs.size(); ++i) begins.push_back(fragSegs[i]->begin());
     std::sort(begins.begin(),begins.end());
-    return begins[0];
+    if (begins.size() == 0) return -1;
+    return begins.front();
 }
 
 unsigned Fragment::end() {
     std::vector<unsigned> ends;
     for (unsigned i = 0; i < fragSegs.size(); ++i) ends.push_back(fragSegs[i]->end());
     std::sort(ends.begin(),ends.end());
-    return ends[ends.size()-1];
+    if (ends.size() == 0) return 0;
+    else return ends.back();
 }
 
 void Fragment::add(Segment* in) {
@@ -115,27 +116,19 @@ double Segment::length() {
     unsigned a = begin();
     unsigned b = end();
     double diff = static_cast<double>(b-a+1);
-    //if (a == 0) diff -= 0.5;
+    if (a == 0) diff -= 0.5;
     return diff;
 }
 
-bool Segment::operator<( const Segment& in ) const {
-    //sort first by xpeak then by slope 
-    //unsigned a = begin();
-    //unsigned b = in.begin();
-    if (xpeak != in.xpeak) return (xpeak < in.xpeak);
-    return (slope < in.slope);
-    	//return (a < b); 
-}
-
-unsigned Segment::begin() {
+int Segment::begin() {
     std::sort(indices.begin(),indices.end());
+    if (indices.size() == 0) return -1;
     return indices[0];
 }
 
-unsigned Segment::begin() const{
+int Segment::begin() const{
     assert(indices.size() > 0);
-    unsigned min = indices[0];
+    int min = indices[0];
     for (unsigned i = 0; i < indices.size(); ++i) {
         if (indices[i] < min) min = indices[i];
     }
@@ -144,20 +137,27 @@ unsigned Segment::begin() const{
 
 unsigned Segment::second() {
     std::sort(indices.begin(),indices.end());
+    assert(indices.size() >= 2);
     return indices[1];
 }
 
 unsigned Segment::end() {
     std::sort(indices.begin(),indices.end());
-    return indices[indices.size()-1];
+    return indices.back();
 }
 
 unsigned Segment::penult() {
     std::sort(indices.begin(),indices.end());
+    assert(indices.size() >= 2);
     return indices[indices.size()-2];
 }
 
-unsigned Segment::size() {return indices.size();}
+unsigned Segment::size() {
+	if (indices.size() == 1) {
+		if (indices[0] == -1) return 0;
+    }
+	return indices.size();
+}
 
 void Segment::setPeak(const std::vector<double>& x, const std::vector<double>& phi) {
     double phimax = -2;
@@ -188,6 +188,15 @@ void Segment::setPeak(const std::vector<double>& x, const std::vector<double>& p
 
 
     return;
+}
+
+bool compareSegments(Segment* a, Segment* b) {
+   //sort first by xpeak then by slope 
+   //unsigned a = begin();
+   //unsigned b = in.begin();
+   if (a->xpeak != b->xpeak) return (a->xpeak < b->xpeak);
+   return (a->slope < b->slope);
+       //return (a < b); 
 }
 
 #endif
