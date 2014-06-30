@@ -169,6 +169,8 @@ void PotentialAvenger::run() {
     strain_energy = 0.0;
     kinetic_energy = 0.0;
     dissip_energy = 0.0;
+    dissip_energy_local = 0.0;
+    dissip_energy_TLS = 0.0;
     ext_energy = 0.0;
     tot_energy = 0.0;
     vector<Fragment*> fragment_list;
@@ -387,9 +389,10 @@ void PotentialAvenger::run() {
 	}
      nfrags[Ntim-1] = fragLength.size(); 
 
-
-    if (nfrags[Ntim-1] > 0) assert(fabs(sumfrag - L*2) < 0.5*h);
-    printf("Final number of fragments: %i \nMinimum fragment length: %f \nFinal dissipated energy: %f \n",nfrags[Ntim-1],minfrag,dissip_energy);
+    printf("Final number of fragments: %i \nMinimum fragment length: %f    avg = %f\nFinal dissipated energy: %3.3e   = local %3.3e + TLS %3.3e  (%f/%f)\n",nfrags[Ntim-1],minfrag,2.0*L/static_cast<double>(nfrags[Ntim-1]),dissip_energy,dissip_energy_local,dissip_energy_TLS,dissip_energy_local/dissip_energy,dissip_energy_TLS/dissip_energy);
+    double alt_dissip_energy = 0.0 + ext_energy - strain_energy - kinetic_energy; 
+    printf("alt. dissipated energy: %3.3e \n",alt_dissip_energy); 
+   cout << " fragment total length " << sumfrag << "     powder length = " << 2.0*L - sumfrag << endl;
     
     //print histogram
     printHisto(fragLength);
@@ -563,14 +566,15 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
     return;
 }
 
-void PotentialAvenger::calculateEnergies(const unsigned& i) {
-    double dissip = 0.0;
+void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>& pg, const vector<double>& wg) {
+    dissip_energy = 0.0;
     kinetic_energy = 0.0;
 
     for (unsigned j = 0; j < Nelt; ++j) {
         Y[j] = 0.5 * E * e[j] * e[j] - dH(j,d[j]);
         YmYc[j] = Y[j]/Yc - 1;
-        if (inTLS[j] == 1) dissip += h * A * Y[j] * (d[j] - d_1[j]);
+        if (inTLS[j] == 1) dissip_energy_TLS += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
+        if (inTLS[j] == 0) dissip_energy_local += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
         if (i > 0) {
             kinetic_energy += 0.5 * h * A * rho * 0.5 *
                                 ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
@@ -578,17 +582,16 @@ void PotentialAvenger::calculateEnergies(const unsigned& i) {
         } else {
             kinetic_energy += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
         }
-        energy[j] = h * A * Y[j] * (1.0 - d[j]);
+        energy[j] = h * A * 0.5 * E * e[j] * e[j] * (1.0 - d[j]);
     }
     //ustat(i,:) *= u(1,Nnod)/ustat(i,Nnod);
     for (unsigned j = 0; j < Nelt; ++j) Ystat[j] = 0.5 * E * pow((ustat[j+1] - ustat[j])/h,2);
 
-	for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0) dissip += H(j,d[j])  * h * A ; //TODO factor of 2 here works well for balance, but why?
-	dissip_energy += dissip;
+	dissip_energy = dissip_energy_local + dissip_energy_TLS;
 
     strain_energy = sum (energy);
     if (i > 0) ext_energy += (a[Nnod-1] * m[Nnod-1] + s[Nnod-2] * A) * v[Nnod-1] * dt;
-    else ext_energy = dissip + strain_energy + kinetic_energy;
+    else ext_energy = dissip_energy + strain_energy + kinetic_energy;
     tot_energy = strain_energy + kinetic_energy + dissip_energy - ext_energy;
     max_energy = max(max(kinetic_energy,dissip_energy),strain_energy);
     return;
@@ -1402,7 +1405,9 @@ void PotentialAvenger::plotEnergies () {
     fprintf( pFileW, "set output './pngFiles/enrgSpr.svg'\n");
     fprintf( pFileW, "plot './datFiles/energies.dat' usi 1:2 ti 'Wspr' w l\n" );
     fprintf( pFileW, "set output './pngFiles/enrgDissip.svg'\n");
-    fprintf( pFileW, "plot './datFiles/energies.dat' usi 1:3 ti 'Wdissip' w l\n" );
+    fprintf( pFileW, "plot './datFiles/energies.dat' usi 1:3 ti 'Wdissip' w l, \\\n" );
+    fprintf( pFileW, "     './datFiles/energies.dat' usi 1:8 ti 'local' w l, \\\n" );
+    fprintf( pFileW, "     './datFiles/energies.dat' usi 1:9 ti 'non-local' w l \n\n" );
     fprintf( pFileW, "set output './pngFiles/enrgExt.svg'\n");
     fprintf( pFileW, "plot './datFiles/energies.dat' usi 1:4 ti 'Wext' w l\n\n" );
     fprintf( pFileW, "set output './pngFiles/enrgKin.svg'\n");
@@ -1664,9 +1669,14 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile, const unsigne
     for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e\n", e[i]);
     fprintf( pFile, "\n" );
 
+    fprintf( pFile, "\nSCALARS Yraw/Yc float\n" );
+    fprintf( pFile, "LOOKUP_TABLE default\n" );
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", e[i]*e[i]*E*0.5/Yc);
+    fprintf( pFile, "\n" );
+
     fprintf( pFile, "\nSCALARS Y/Yc float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", e[i]*s[i]*0.5/Yc);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", Y[i]/Yc);
     fprintf( pFile, "\n" );
 
     fprintf ( pFile, "\nSCALARS damage float\n" );
@@ -1700,6 +1710,8 @@ void PotentialAvenger::printGlobalInfo () const {
         fprintf( pFile, "%12.3e", kinetic_energy );
 	fprintf( pFile, "%12.3e", max_energy * 0.01 );
 	fprintf( pFile, "%12.3e", tot_energy );
+	fprintf( pFile, "%12.3e", dissip_energy_local );
+	fprintf( pFile, "%12.3e", dissip_energy_TLS );
         fprintf( pFile, "\n" );
 	fclose( pFile );
     }

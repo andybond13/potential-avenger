@@ -42,7 +42,7 @@ unsigned fullCompression;
 std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile;
 double E, A, rho, c, L, h, dt, Yc, sigc, ec;
 unsigned _numFrag, _Nt, _DtPrint;
-double strain_energy, dissip_energy, kinetic_energy, max_energy, ext_energy, tot_energy;
+double strain_energy, dissip_energy, dissip_energy_TLS, dissip_energy_local, kinetic_energy, max_energy, ext_energy, tot_energy;
 double _fMean, _fMed, _fMax, _fMin, _fStDev, _fRange, _fSkew, _fExKurtosis;
 std::vector<double> x, t, xe, d, u, v, a, s, e, phi, Y, Ycv, YmYc, energy, m, d_1, u_1, Ystat, ustat, phi_1, phi_2, phi_3, phi_4, phi_5, phi_6;
 std::vector<unsigned> nfrags;	
