@@ -614,7 +614,7 @@ double PotentialAvenger::H (const unsigned j, const double dee) {
     return (Ycv[j] * alpha * dee * dee)/(1.0 - alpha * dee);
 }    
 
-double PotentialAvenger::dH (const unsigned j, const double dee) { 
+double PotentialAvenger::dH (const unsigned j, const double dee) const { 
     return (Ycv[j] * alpha * dee) * (2.0 - alpha * dee)/pow(1.0 - alpha * dee,2);
 }    
 

@@ -81,7 +81,7 @@ void checkInTLS(const std::vector<Segment*>& segments, std::vector<unsigned>& el
 void updateLevelSet(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
 
 double H(const unsigned, const double);
-double dH(const unsigned, const double);
+double dH(const unsigned, const double) const;
 
 void calculateDmaxAlt(const std::vector<double>& pg, const std::vector<double>& wg);
 
