@@ -157,6 +157,9 @@ void PotentialAvenger::run() {
     wg[1] = 0.5;
 
     d = vector<double>(Nelt,0);
+    d_type = vector<unsigned>(Nelt,0); //0-local, 0-NL: (the type of model used the last time d was computed)
+    d_quad = vector<vector<double> >(Nelt);
+    d_quad_wt = vector<vector<double> >(Nelt);
     d_1 = vector<double>(Nelt,0);
     d_max = vector<double>(Nelt,0);
     d_max_alt = vector<double>(Nelt,0);
@@ -246,7 +249,7 @@ void PotentialAvenger::run() {
     checkInTLS(segments,inTLS,inTLSnode);
 
     //calculate stresses
-    calculateStresses(pg,wg);
+    calculateStresses(pg,wg,segments);
 
     //acceleration
     a[0] = 0;
@@ -264,7 +267,7 @@ void PotentialAvenger::run() {
 
     //print data to file
     vector<double>fragLength = findFragments(dm, segments,phi,nfrags[0],fragment_list);
-    calculateEnergies(0);
+    calculateEnergies(0,pg,wg);
     if (printVTK != 0) printVtk(_Nt);
     printFrags(fragLength);
     printGlobalInfo();
@@ -351,7 +354,7 @@ void PotentialAvenger::run() {
         calculateDmaxAlt(pg,wg); 
 
 		//updating the stress
-        calculateStresses(pg,wg);
+        calculateStresses(pg,wg,segments);
         
     for (unsigned j = 1; j < Nnod-1; ++j)  phi[j] = max(phi[j], phi_1[j]);
 		//acceleration
@@ -369,7 +372,7 @@ void PotentialAvenger::run() {
         _numFrag = nfrags[i];
 
         //calculate energies
-        calculateEnergies(i);
+        calculateEnergies(i,pg,wg);
 
         //update gradient for printing
 		calculateLevelSetGradient(d, gradPhi);
@@ -472,37 +475,100 @@ void PotentialAvenger::checkInTLS(const vector<Segment*>& segments, vector<unsig
     return;
 }
 
-void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg) {
+void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg, vector<Segment*>& segments) {
 	//if in local, clear phi (clear if not in TLS = clear all and copy if in TLS)
     for (unsigned j = 0; j < Nnod; ++j) {
         if (inTLSnode[j] == 0 && alpha > 0.0) phi[j] = 0;
     }
     for (unsigned j = 0; j < Nelt; ++j) {
+		d_quad[j].clear();
+		d_quad_wt[j].clear();
+	    s[j] = 0;
+	    d[j] = 0;
    		if ((inTLS[j] == 1 && localOnly == 0) || alpha ==0.0 ) { 	//in TLS: use non-local damage model
 	        assert(pg.size() == wg.size());
 	
 			phi[j] = max(phi[j],phi_1[j]);	
 			phi[j+1] = max(phi[j+1],phi_1[j+1]);	
-	        s[j] = 0;
 	        e[j] = (u[j+1] - u[j])/h;
   	    	vector<double> dloc(pg.size(),0.0);
-    	    if (phi[j] > 0  && phi[j+1] > 0) {
+			if (inTLSnode[j] == 1 && inTLSnode[j+1] == 0) {
+				//element at transition
+				double phiLocal = phi[j+1];
+				if (d_type[j] == 0) phiLocal = dm.phi(d_1[j]);
+				double delta = fabs(phi[j] + phiLocal);
+                delta = max(delta, 0.0); delta = min(delta, h);
+        	    for (unsigned k = 0; k < pg.size(); ++k) {
+					double philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phiLocal);
+					d_quad[j].push_back(dm.dval(philoc1));
+					d_quad_wt[j].push_back(wg[k] * delta/h);
+					dloc[k] = dm.dval(philoc1);
+					d[j] += wg[k] * dloc[k] * delta/h;
+            	    s[j] += wg[k] * (1-dloc[k]) * E * e[j] * delta/h;
+                }
+				d[j] += (h-delta)/h * dm.dval(phiLocal);
+				s[j] += (h-delta)/h * dm.dval(phiLocal) * E * e[j];
+				d_quad[j].push_back(dm.dval(phiLocal)); 
+				d_quad_wt[j].push_back(1.0 * (h-delta)/h );
+                
+
+			} else if (inTLSnode[j] == 0 && inTLSnode[j+1] == 1) {
+				//element at transition
+				double phiLocal = phi[j];
+				if (d_type[j] == 0) phiLocal = dm.phi(d_1[j]);
+                double delta = fabs(phiLocal + phi[j+1]) + h;
+                delta = max(delta, 0.0); delta = min(delta, h);
+                for (unsigned k = 0; k < pg.size(); ++k) {
+                    double philoc1 = pg[k] * phiLocal + (1-pg[k]) * (phi[j+1]);
+                    d_quad[j].push_back(dm.dval(philoc1));
+                    d_quad_wt[j].push_back(wg[k] * delta/h);
+                    dloc[k] = dm.dval(philoc1);
+                    d[j] += wg[k] * dloc[k] * delta/h;
+                    s[j] += wg[k] * (1-dloc[k]) * E * e[j] * delta/h;
+//cout << " added 0 " << dm.dval(philoc1) << " ( " << wg[k] * delta/h << " )" <<endl;
+                }   
+				d[j] += (h-delta)/h * dm.dval(phiLocal);
+				s[j] += (h-delta)/h * dm.dval(phiLocal) * E * e[j];
+                d_quad[j].push_back(dm.dval(phiLocal));
+                d_quad_wt[j].push_back(1.0 * (h-delta)/h );
+//cout << " added 0 " << dm.dval(phiLocal) <<  " ( " << (h-delta)/h << " ) " << endl;
+
+    	    } else if (phi[j] > 0  && phi[j+1] > 0) {
         	    for (unsigned k = 0; k < pg.size(); ++k) {
             	    if (fabs(phi[j] - phi[j+1]) < h) {
                 	    //there's a peak/anti-peak inside!
-                    	double delta = 0.5*(h + phi[j+1] - phi[j]);
+                    	double delta = 0.5*(h - phi[j+1] + phi[j]); //delta computed for anti-peak
+
+						//see if any peaks are within element -> reverse delta
+						bool flag = false;
+						for (unsigned ii = 0; ii < segments.size(); ++ii) {
+							if (segments[ii]->xpeak >= x[j] && segments[ii]->xpeak <= x[j+1]) flag = true;
+						}
+						if (flag == true)  delta = h - delta;
+
 	                    //subdivide interval into two: [x1, x1+delta] [x1+delta, x2], effectively double number of integration points
-    	                double philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phi[j] + delta);
-        	            double philoc2 = pg[k] * (phi[j] + delta) + (1-pg[k]) * phi[j+1];
-            	        dloc[k] = 0.5 * dm.dval(philoc1) + 0.5 * dm.dval(philoc2);
+    	                double philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phi[j] - delta);
+    	                if (flag) philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phi[j] + delta);
+        	            double philoc2 = pg[k] * (phi[j] - delta) + (1-pg[k]) * phi[j+1];
+        	            if (flag) philoc2 = pg[k] * (phi[j] + delta) + (1-pg[k]) * phi[j+1];
+						d_quad[j].push_back(dm.dval(philoc1));
+						d_quad[j].push_back(dm.dval(philoc2));
+						d_quad_wt[j].push_back(delta/h * wg[k]);
+						d_quad_wt[j].push_back((h-delta)/h * wg[k]);
+            	        dloc[k] = delta/h * dm.dval(philoc1) + (h-delta)/h * dm.dval(philoc2);
                 	} else {
 	                    double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
+						d_quad[j].push_back(dm.dval(philoc));
+						d_quad_wt[j].push_back(wg[k]);
     	                dloc[k] = dm.dval(philoc);
         	        }
             	    s[j] += wg[k] * (1-dloc[k]) * E * e[j];
+					d[j] += wg[k] * dloc[k];
 	            }
     	    } else if  (phi[j] <= 0 && phi[j+1] <= 0) {
         	    s[j] = E * e[j];
+			    d_quad[j].push_back(0.0);
+				d_quad_wt[j].push_back(1.0); 
 	        } else if  (phi[j] > 0 && phi[j+1] <= 0) {
     	        double delta = fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1]));
         	    double sloc = 0;
@@ -510,7 +576,12 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
                 	double philoc = pg[k] * phi[j];
 	                dloc[k] = dm.dval(philoc);
     	            sloc += wg[k] * (1-dloc[k]) * E * e[j];
+			        d[j] += wg[k] * dloc[k] * delta; //+ ( 1-delta) * 0.0
+					d_quad[j].push_back(dm.dval(philoc));
+					d_quad_wt[j].push_back(wg[k] * delta);
         	    }
+				d_quad[j].push_back(0.0);
+				d_quad_wt[j].push_back( 1-delta );
             	s[j] = delta *  sloc +  (1-delta) * E * e[j];
 	        } else if (phi[j] <= 0 && phi[j+1] > 0) {
     	        double delta = fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1]));
@@ -519,14 +590,15 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
                 	double philoc = pg[k] * phi[j+1];
 	                dloc[k] = dm.dval(philoc);
     	            sloc += wg[k] * (1-dloc[k]) * E * e[j];
+			        d[j] += wg[k] * dloc[k] * delta; //+ ( 1-delta) * 0.0
+					d_quad[j].push_back(dm.dval(philoc));
+					d_quad_wt[j].push_back(wg[k] * delta); 
         	    }
+				d_quad[j].push_back(0.0);
+				d_quad_wt[j].push_back( 1-delta );
             	s[j] = delta *  sloc +  (1-delta) * E * e[j];
 	        }
 
-    	    d[j] = 0;
-	        for (unsigned k = 0; k < pg.size(); ++k) {
-    	        d[j] += wg[k] * dloc[k];
-        	}
             if (d[j] > d_max[j]) d_max[j] = d[j];		//update maximum damage
 
 			if (inTLSnode[j] + inTLSnode[j+1] == 1) {
@@ -539,7 +611,7 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
                 //this makes compression fully in contact no matter what the damage
                 if (e[j] < 0) s[j] = e[j] * E;
             }
-
+			d_type[j] = 1;
 		} else { 		//inTLS == 0 : local damage model
 			double factor = sqrt(2.0 * Yc / (E * e[j] * e[j]) ); 
             //double factor = sqrt(8.0 * Yc * Yc - 2.0 * Yc * E * e[j] * e[j]) / (E * e[j] * e[j] - 4 * Yc);
@@ -564,7 +636,14 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
 			phi[j+1]					+= 0.5 * dm.phi(dee);	//give half to right node
             if (j == 0)			phi[j]	+= 0.5 * dm.phi(dee);	//if end, give 2 halfs to left node
             if (j == Nelt - 1)	phi[j+1]+= 0.5 * dm.phi(dee);	//if end, give 2 halfs to right node
+
+			d_quad[j].push_back(d[j]);
+            d_quad_wt[j].push_back(1.0);
+			d_type[j] = 0;
 		}
+		assert(d_quad[j].size() == d_quad_wt[j].size());
+		assert(fabs(sum(d_quad_wt[j]) - 1.0) < 0.0001);
+		assert(d_quad[j].size() == d_quad_wt[j].size());
     }
     return;
 }
@@ -574,7 +653,12 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
     kinetic_energy = 0.0;
 
     for (unsigned j = 0; j < Nelt; ++j) {
-        Y[j] = 0.5 * E * e[j] * e[j] - dH(j,d[j]);
+        Y[j] = 0.5 * E * e[j] * e[j];
+        for (unsigned k = 0; k < d_quad_wt[j].size(); ++k) {
+            double dloc = d_quad[j][k];
+            Y[j] -= d_quad_wt[j][k] * dH(j,dloc);
+        }
+
         YmYc[j] = Y[j]/Yc - 1;
         if (inTLS[j] == 1) dissip_energy_TLS += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
         if (inTLS[j] == 0) dissip_energy_local += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
@@ -732,12 +816,23 @@ if (phimin == phimax) goto next;
 
 
                 double phimaxY;
-                if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimax,dm.dval(phimax)); //1/2*s(i,Nelt)*e(i,Nelt);
-                else phimaxY = 0.5*E*pow(e[iphimax],2) - dH(iphimax,dm.dval(phimax));// 1/2*s(i,iphimax)*e(i,iphimax);
+                if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimax, dm.dval(phimax)); //1/2*s(i,Nelt)*e(i,Nelt);
+                else {
+                    phimaxY = 0.5*E*pow(e[iphimax],2);// 1/2*s(i,iphimax)*e(i,iphimax);
+                    for (unsigned k = 0; k < d_quad_wt[iphimax].size(); ++k) {
+	                    phimaxY -= d_quad_wt[iphimax][k] * dH(iphimax,d_quad[iphimax][k]);
+                    }
+                }
 
                 double phiminY;
                 if (iphimin == Nnod-1) phiminY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimin, dm.dval(phimin)); //1/2*s(i,Nelt)*e(i,Nelt);
-                else phiminY = 0.5*E*pow(e[iphimin],2) - dH(iphimin,dm.dval(phimin));// 1/2*s(i,iphimax)*e(i,iphimax);
+                else {
+					phiminY = 0.5*E*pow(e[iphimin],2);// 1/2*s(i,iphimax)*e(i,iphimax);
+                    for (unsigned k = 0; k < d_quad_wt[iphimin].size(); ++k) {
+                        phiminY -= d_quad_wt[iphimin][k] * dH(iphimin,d_quad[iphimin][k]);
+                    }
+                }
+
                     
                 double YbarmYc = residu_Y/(dm.dval(phimax)-dm.dval(phimin));
                 double oldresidu = residu;
@@ -862,7 +957,7 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
         
             double gradient = 0;
             if (loc >= 1) {
-                if (d_1[loc] > d_1[loc-1]) gradient = 1.0;
+                if (d_1[loc] > d_1[loc-1]) gradient = 1.0; else gradient = -1.0;
                 if (d_1[loc] < d_1[loc-1]) gradient = -1.0;
             } else gradient = -1.0;
             assert(gradient != 0);
