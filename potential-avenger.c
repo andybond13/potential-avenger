@@ -1017,70 +1017,6 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
 };
 
 vector<double> PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment*>& newSegment, const std::vector<double>& phi, unsigned& nfrags, std::vector<Fragment*>& fragment_list) {
-    while(fragment_list.size() > 0) {Fragment* f = fragment_list.back(); delete f; fragment_list.pop_back();}
-    fragment_list.clear();
-
-    sort(newSegment.begin(),newSegment.end(),compareSegments);
-
-    Fragment* f = new Fragment();
-    for (unsigned i = 0; i < newSegment.size(); ++i) {
-
-        if (newSegment[i]->size() == 0) continue;
-        f->add(newSegment[i]);
-        double phimax = newSegment[i]->phipeak;
-        double slope = newSegment[i]->slope;
-        if ((slope >= 0 && phimax >= lc-h) || (newSegment[i]->end()  == Nnod - 1) || (newSegment[i]->slope <= 0 && i == newSegment.size()-1) ) {
-            fragment_list.push_back(f);
-            f = new Fragment();
-        } else {
-		}
-    }
-
-    if (fragment_list.size() == 0) {
-        fragment_list.push_back(f);
-    }
-
-    //add local damage to fragments
-    for (unsigned i = 0; i < Nnod; ++i) {
-        if (!inTLSnode[i] && localOnly == 0) {
-            int mindistID = -1;
-            for (unsigned j = 0; j < fragment_list.size(); ++j) {
-                if (fragment_list.size() == 1) {
-                    mindistID = j; 
-				} else if ((int)i >= fragment_list[j]->begin() && i <= fragment_list[j]->end() ) {
-					mindistID = j;
-				} else if (j == 0 && i <= fragment_list[j]->end() ) {
-					mindistID = j;
-				} else if ((int)i >= fragment_list[j]->begin() && j + 1 == fragment_list.size() ) {
-					mindistID = j;
-				} else {
-				}
-            }
-            if (mindistID < 0) {
-				double mindist = 2.0*L;
-                for (unsigned j = 0; j < fragment_list.size(); ++j) {
-                    if ( fabs(x[fragment_list[j]->begin()] - x[i]) < mindist ) {
-						mindist = fabs(x[fragment_list[j]->begin()]-x[i]);
-						mindistID = j;//fragment_list[j]->begin();
-					}                        
-                    if ( fabs(x[fragment_list[j]->end()] - x[i]) < mindist ) {
-						mindist = fabs(x[fragment_list[j]->end()]-x[i]);
-						mindistID = j;//fragment_list[j]->end();
-					}                        
-                }
-                
-            }
-			assert(mindistID >= 0);
-			assert(mindistID < (int)fragment_list.size());
-			//add length to segment
-		    if (i == Nnod-1) fragment_list[mindistID]->localLength +=  0.5;
-		    else if (i == 0) fragment_list[mindistID]->localLength +=  0.5;
-		    else fragment_list[mindistID]->localLength +=  1.0;
-        }
-    }
-    for (unsigned i = 0; i < Nelt; ++i) {
-        assert(d_max_alt[i] < 1);
-    }
     
     //calculate total number of fragments (removing symmetry simplification)
     vector<double> fragLength = fragmentLength(fragment_list); 
@@ -1092,128 +1028,47 @@ vector<double> PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segm
 
 
 vector<double> PotentialAvenger::fragmentLength(vector<Fragment*>& fragment_list) { 
-    vector<double> fragLength;
-    vector<double> fragbegin;
-    vector<double> fragend;
-    for (unsigned i = 0; i < fragment_list.size(); ++i) {
-        double fragLen = fragment_list[i]->length()*static_cast<double>(h) * 2.0;
-        if ( ( ((i == 0) && (fragment_list[i]->begin() == 0)) || ((i > 0) && (fragment_list[i]->begin() > 0)) ) && (fragment_list[i]->end() > 0) ) {
-            fragLen /= 2.0;
-            fragLength.push_back(fragLen);
-			
-			double fend;
-            if (i == fragment_list.size() - 1) fend = static_cast<double>(Nnod)-1.0;
-			else fend = static_cast<double>(fragment_list[i]->end());
+    
+	vector<double> fragLength;
+    vector<vector<int> > fragindex;
+    vector<int> powderindex;
 
-			double fbegin;
-            if (i == 0) fbegin = 0.0;
-			else fbegin = static_cast<double>(fragment_list[i]->begin());
- 
-			fragbegin.push_back(-fend); fragend.push_back(-fbegin);
-            fragbegin.push_back(fbegin); fragend.push_back(fend);
-            fragLength.push_back(fragLen);
-        } else {
-        	fragLength.push_back(fragLen);
-			double fend;
-            if (i == fragment_list.size() - 1) fend = static_cast<double>(Nnod)-1.0;
-			else fend = static_cast<double>(fragment_list[i]->end()); 			
-
-			fragbegin.push_back(-fend);
-        	fragend.push_back(fend);
-		}
-    }
-
-	//fill in fragments (will likely get split off later)
-	for (double i = -static_cast<double>(Nelt)+1.0; i < static_cast<double>(Nelt); ++i) {
-		int frag = -1;
-		int dist = Nelt*2;
-		int closest = -Nnod;
-		for (unsigned j = 0; j < fragLength.size(); ++j) {
-			if (i >= fragbegin[j] && i <= fragend[j]) frag = j;
-			else {
-				if (fabs(i - fragbegin[j]) < dist) {
-					dist = fabs(i - fragbegin[j]);
-					closest = j;
-				}
-				if (fabs(i - fragend[j]) < dist) {
-					dist = fabs(i - fragend[j]);
-					closest = j;
-				}
-
+	//assign indices to fragments
+    int begin = -1;
+    for (unsigned j = 0; j < Nelt; ++j) {
+        if (d[j] == 1.0 ) {
+			begin = -1;
+			powderindex.push_back(j);
+		} else {
+			if (begin == -1) {
+				begin = j;
+				fragindex.push_back(vector<int>(0));
 			}
+			fragindex[fragindex.size()-1].push_back(j);
 		}
-		if (frag == -1) {
-			assert(closest >= 0);
-			double distA = fabs(i - fragbegin[closest]);
-			double distB = fabs(i - fragend[closest]);
-			if (distA > distB) fragend[closest] = i;
-			else fragbegin[closest] = i;
-		}
-	}
-
-	//re-calculate fragment lengths
-    double sumfrag = 0;
-    for (unsigned i = 0; i < fragLength.size(); ++i) {
-		fragLength[i] = h*(fragend[i] - fragbegin[i] + 1);
-		if (fragbegin[i] == 0.0) fragLength [i] -= 0.5*h;
-		if (fragend[i] == (double)Nnod-1) fragLength [i] -= 0.5*h;
-		if (fragbegin[i] == -(double)Nnod+1) fragLength [i] -= 0.5*h;
-		if (fragend[i] == 0.0 && fragbegin[i] != 0.0) fragLength [i] -= 0.5*h;
-		if (fragend[i] == 0.0 && fragbegin[i] == 0.0) fragLength [i] = h;
-	}
-    for (unsigned i = 0; i < fragLength.size(); ++i) sumfrag += fragLength[i];
-    assert(fabs(sumfrag - 2.0*L) < 0.25 * h);
-
-	//need to subdivide fragments for local-damage fragments (split)
-    for (unsigned i = 0; i < Nelt; ++i) {
-			if (d[i] != 1.0) continue;
-			if (inTLSnode[i] == 1 && inTLSnode[i+1] == 1) continue;
-				//on positive side
-                int foundSeg = -1;
-				for (unsigned k = 0; k < fragLength.size(); ++k) {
-					if (static_cast<double>(i) >= fragbegin[k] && static_cast<double>(i) <= fragend[k]) {
-						foundSeg = static_cast<int>(k);
-						double original = fragLength[k];
-						double prop1 = static_cast<double>(i) - fragbegin[k] + 0.5;
-						if ((fabs(prop1*h) < 0.5*h) || (fabs(prop1*h-original) < 0.5*h) )  goto postSplit;
-                        fragLength[k] = prop1*h;
-						fragLength.push_back(original - prop1*h);
-						fragbegin[k] = fragbegin[k];
-						fragend.push_back(fragend[k]);
-						fragbegin.push_back( static_cast<double>(i) + 0.5);
-						fragend[k] = static_cast<double>(i) + 0.5;
-						assert(prop1 > 0); assert(original - prop1*h > 0);
-					}
-				}
-				assert(foundSeg >= 0);
-
-				//same, on negative side
-                foundSeg = -1;
-                for (unsigned k = 0; k < fragLength.size(); ++k) {
-                    if (-static_cast<double>(i) >= fragbegin[k]+1 && -static_cast<double>(i) <= fragend[k]) {
-                        foundSeg = static_cast<int>(k);
-                        double original = fragLength[k];
-                        double prop1 = -static_cast<double>(i) - fragbegin[k] - 0.5;
-						if (fragbegin[k] == -static_cast<double>(i)-0.5) goto postSplit;
-                        if (-static_cast<double>(i) - 0.5 == fragend[k]) goto postSplit;
-
-                        fragLength[k] = prop1*h;
-                        fragLength.push_back(original - prop1*h);
-                        fragbegin[k] = fragbegin[k];
-                        fragend.push_back(fragend[k]);
-                        fragbegin.push_back( -static_cast<double>(i) - 0.5);
-                        fragend[k] = -static_cast<double>(i) - 0.5;
-                        assert(prop1 > 0); assert(original - prop1*h > 0);
-                    }
-                }
-                assert(foundSeg >= 0);
-                postSplit:			    
- 				assert(0 == 0);	
     }
 
-    sumfrag = 0;
-    for (unsigned i = 0; i < fragLength.size(); ++i) sumfrag += fragLength[i];
-	assert(fabs(sumfrag - 2.0*L) < 0.5 * h);
+    double sumfrag = 0.0;
+	for (unsigned j = 0; j < fragindex.size(); ++j) {
+	    double length = static_cast<double>(fragindex[j].size()) * h;
+
+        bool flag = true;  //need to duplicate
+		if (length > 0) {
+			if (fragindex[j][0] == 0) flag = false;  //no need if d[0] < 0
+		}
+        if (flag) {
+			fragLength.push_back(length);	
+			fragLength.push_back(length);	
+		} else {
+			fragLength.push_back(length*2.0);	
+		}
+		sumfrag += length * 2.0;
+	}
+
+	//length check
+	double powderLength = static_cast<double>(powderindex.size()) * h * 2.0;
+    assert(fabs(sumfrag + powderLength - L * 2.0) < h * 0.5);
+
 	return fragLength;
 };
 
