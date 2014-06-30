@@ -225,7 +225,7 @@ void PotentialAvenger::run() {
     //constant strain rate applied
     double csr = strain_rate;
     bool vbc = true;
-    for (unsigned j = 0; j < Nnod; ++j) v[j] = vbc*csr*x[j];
+    for (unsigned j = 0; j < Nnod; ++j) v[j] = static_cast<double>(vbc)*csr*x[j];
     v[Nnod-1] = csr;
 
     for (unsigned j = 0; j < Nnod; ++j) {
