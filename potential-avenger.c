@@ -161,7 +161,6 @@ void PotentialAvenger::run() {
     d_max = vector<double>(Nelt,0);
     d_max_alt = vector<double>(Nelt,0);
     s = vector<double>(Nelt,0);
-    e = vector<double>(Nelt,0);
     energy = vector<double>(Nelt,0);
     Y = vector<double>(Nelt,0);
     YmYc = vector<double>(Nelt,0);
@@ -204,14 +203,18 @@ void PotentialAvenger::run() {
     m[0] = m[0]/2; m[Nnod-1] = m[Nnod-1]/2;
 
     //initialization
+    double startWithLoad = 1.0;
+	double qty = (ec - strain_rate * dt * 10.0) * startWithLoad;
+	double e0 = max(qty - fmod(qty, (strain_rate * dt)), 0.0);
+    e = vector<double>(Nelt,e0);
     x = vector<double>(Nnod,0);
-    for (unsigned j = 0; j < Nnod; ++j) x[j] = j*h;
+    for (unsigned j = 0; j < Nnod; ++j) x[j] = static_cast<double>(j)*h;
 
     xe = vector<double>(Nnod,0);
     for (unsigned j = 0; j < Nelt; ++j) xe[j] = 0.5*(x[j] + x[j+1]);
 
     t = vector<double>(Ntim,0);
-    for (unsigned j = 0; j < Ntim; ++j) t[j] = j*dt;
+    for (unsigned j = 0; j < Ntim; ++j) t[j] = static_cast<double>(j)*dt;
 
     // Initially the bar is loaded and all elements are at Yc
     // A tls is placed on the first element, obviously it satifies
@@ -226,7 +229,7 @@ void PotentialAvenger::run() {
     v[Nnod-1] = csr;
 
     for (unsigned j = 0; j < Nnod; ++j) {
-        u[j] = 0.0;//x[j] * ec * L * 0.999*(1-vbc);
+        u[j] = x[j] * e0;//x[j] * ec * L * 0.999*(1-vbc);
         ustat[j] = 0.0;//x[j] * ec * L * 0.999*(1-vbc);
         phi[j] = -1;//(2*h-x[j])*(1-vbc)-vbc;
     }
