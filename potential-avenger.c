@@ -356,7 +356,8 @@ void PotentialAvenger::run() {
 		//updating the stress
         calculateStresses(pg,wg,segments);
         
-    for (unsigned j = 1; j < Nnod-1; ++j)  phi[j] = max(phi[j], phi_1[j]);
+        for (unsigned j = 1; j < Nnod-1; ++j)  phi[j] = max(phi[j], phi_1[j]);
+
 		//acceleration
         if (phi[0] <= lc) a[0] = 0;
         else a[0] =  A*s[0]/m[0];
@@ -436,18 +437,18 @@ void PotentialAvenger::calculateDmaxAlt(const vector<double>& pg, const vector<d
     return;
 }
 
-void PotentialAvenger::calculateLevelSetGradient( const vector<double>& dV, vector<double>& gradPhi) {
+void PotentialAvenger::calculateLevelSetGradient( const vector<double>& dV, vector<double>& gradientPhi) {
 	//calculate the gradient of the levelset (local model). This will be used to see if the |gradPhi| > 1,
 	//in which case, a non-local zone will be inserted
-	assert(gradPhi.size() == Nnod);
-    gradPhi[0] = (phi[1]-phi[0])/(h); //gradient between two elements middle
-    gradPhi[Nnod-1] = (phi[Nnod-1]-phi[Nnod-2])/(h); //gradient between two elements middle
+	assert(gradientPhi.size() == Nnod);
+    gradientPhi[0] = (phi[1]-phi[0])/(h); //gradient between two elements middle
+    gradientPhi[Nnod-1] = (phi[Nnod-1]-phi[Nnod-2])/(h); //gradient between two elements middle
 	for (unsigned i = 1; i < Nnod-1; ++i) {
 		double phiM = dm.phi(dV[i]);
         double phiM1 = dm.phi(dV[i-1]);
 		if (inTLS[i]) phiM = (phi[i+1]+phi[i])*0.5;
 		if (inTLS[i-1]) phiM1 = (phi[i]+phi[i-1])*0.5;
-		gradPhi[i] = (phiM - phiM1) / h;
+		gradientPhi[i] = (phiM - phiM1) / h;
 	}
     return;
 }
