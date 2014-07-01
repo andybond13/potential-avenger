@@ -4,6 +4,7 @@
 //(c) 2013, 2014
 
 #include <potential-avenger.h>
+#include <limits>
 #include <math.h>
 #include <sys/stat.h>
 
@@ -17,7 +18,7 @@ int main(int argc, const char* argv[]) {
     double end_t = atof(argv[3]);
     unsigned Nelt = atoi(argv[4]);
     double lc = atof(argv[5]);
-    unsigned intOrder = atoi(argv[6]);
+    unsigned startWithLoad = atoi(argv[6]);
     unsigned printVTK = atoi(argv[7]);
     int oneAtATime = atoi(argv[8]);
     double minOpenDist = atof(argv[9]);
@@ -27,7 +28,7 @@ int main(int argc, const char* argv[]) {
     unsigned fullCompression = atoi(argv[13]);
     string path = ".";
 
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, intOrder, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, path);
     pa.run();
 }
 
@@ -37,7 +38,7 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     end_t = in2;
     Nelt = in3;
     lc = in4;
-    intOrder = in5;
+    startWithLoad = in5;
     printVTK = in6;
     oneAtATime = in7;
     minOpenDist = in8;
@@ -127,13 +128,22 @@ double sum(const vector<unsigned> in) {
     return result;
 }
 
+template <typename T> double sgn(T val) {
+    return (T(0) < val) - (val < T(0));
+}
+
+double printable (double in) {
+    double limit = numeric_limits<double>::epsilon();
+	if (fabs(in) < limit) return 0.0;
+    else return in;
+}
+
 void PotentialAvenger::run() {
 
     printRunInfo();
 
     dm = DamageModel("Parabolic",lc);
 
-    unsigned Ntim = Nelt*ts_refine*end_t;
     Nnod = Nelt+1;
     _Nt = 0;
     E = 1; //(beton)
@@ -145,6 +155,7 @@ void PotentialAvenger::run() {
     double cfl = 1./ts_refine;
     dt = cfl * h/c;//
     Yc = E/10;
+    unsigned Ntim = Nelt*ts_refine*end_t*c;
     ec = sqrt(2 * Yc / E);
     sigc = E * ec;
 
@@ -187,11 +198,6 @@ void PotentialAvenger::run() {
     phi = vector<double>(Nnod,0);
 
     phi_1 = vector<double>(Nnod,0);
-    phi_2 = vector<double>(Nnod,0);
-    phi_3 = vector<double>(Nnod,0);
-    phi_4 = vector<double>(Nnod,0);
-    phi_5 = vector<double>(Nnod,0);
-    phi_6 = vector<double>(Nnod,0);
     vector<double> phidot;
     gradPhi = vector<double>(Nnod,0.0);
     //vector<double> ddotbar(Ntim,0);
@@ -206,8 +212,7 @@ void PotentialAvenger::run() {
     m[0] = m[0]/2; m[Nnod-1] = m[Nnod-1]/2;
 
     //initialization
-    double startWithLoad = 1.0;
-	double qty = (ec - strain_rate * dt * 10.0) * startWithLoad;
+	double qty = (ec - strain_rate * dt * 10.0) * static_cast<double>(startWithLoad);
 	double e0 = max(qty - fmod(qty, (strain_rate * dt)), 0.0);
     e = vector<double>(Nelt,e0);
     x = vector<double>(Nnod,0);
@@ -282,11 +287,6 @@ void PotentialAvenger::run() {
         vector<double> v_1 = vector<double>(Nnod,0); v_1 = v; v.assign(Nnod,0.0);
         vector<double> a_1 = vector<double>(Nnod,0); a_1 = a; a.assign(Nnod,0.0);
         d_1 = vector<double>(Nnod,0); d_1 = d; d.assign(Nnod,0.0);
-        phi_6.clear(); if (i >= 6) phi_6 = phi_5;
-        phi_5.clear(); if (i >= 5) phi_5 = phi_4;
-        phi_4.clear(); if (i >= 4) phi_4 = phi_3;
-        phi_3.clear(); if (i >= 3) phi_3 = phi_2;
-        phi_2.clear(); if (i >= 2) phi_2 = phi_1;
         phi_1 = phi;
 
 
@@ -860,47 +860,7 @@ if (phimin == phimax) goto next;
             }
 
             for (unsigned j = sbegin; j <=send; ++j) {
-                if (i > 5 && intOrder >= 6) {
-                    vector<double> w;
-                    w.push_back(60./147); w.push_back(360./147); w.push_back(-450./147); w.push_back(400./147);
-                    w.push_back(-225./147); w.push_back(72./147); w.push_back(-10./147); 
-                    vector<double> phihist;
-                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                    phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]); phihist.push_back(phi_5[j]);
-                    phihist.push_back(phi_6[j]);
-                    phi[j] = dotProduct(phihist,w);
-                } else if (i > 4 && intOrder >= 5) {
-                    vector<double> w;
-                    w.push_back(60./137); w.push_back(300./137); w.push_back(-300./137); w.push_back(200./137);
-                    w.push_back(-75./137); w.push_back(12./137);
-                    vector<double> phihist;
-                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                    phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]); phihist.push_back(phi_5[j]);
-                    phi[j] = dotProduct(phihist,w);
-                } else if (i > 3 && intOrder >= 4) {
-                    vector<double> w;
-                    w.push_back(12./25); w.push_back(48./25); w.push_back(-36./25); w.push_back(16./25);
-                    w.push_back(-3./25);
-                    vector<double> phihist;
-                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                    phihist.push_back(phi_3[j]); phihist.push_back(phi_4[j]);
-                    phi[j] = dotProduct(phihist,w);
-                } else if (i > 2 && intOrder >= 3) {
-                    vector<double> w;
-                    w.push_back(6./11); w.push_back(18./11); w.push_back(-9./11); w.push_back(2./11);
-                    vector<double> phihist;
-                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                    phihist.push_back(phi_3[j]);
-                    phi[j] = dotProduct(phihist,w);
-                } else if (i > 1 && intOrder >= 2) {
-                    vector<double> w;
-                    w.push_back(2./3); w.push_back(4./3); w.push_back(-1./3);
-                    vector<double> phihist;
-                    phihist.push_back(dphi); phihist.push_back(phi_1[j]); phihist.push_back(phi_2[j]);
-                    phi[j] = dotProduct(phihist,w);
-                } else {
-                    phi[j] = phi_1[j] + dphi;
-                }
+                phi[j] = phi_1[j] + dphi;
                 phi[j] = max(phi[j],phi_1[j]); //constraint: dphi >= 0
                 //enforcing limit of level-set motion
                 //phi[j] = min(phi_1[j]+h,phi[j]);
@@ -1337,7 +1297,6 @@ void PotentialAvenger::printRunInfo() {
     cout << "End Time (s) = " << end_t << endl;
     cout << "Time-step refinement ratio = " << ts_refine << endl;
     cout << "Damage gradient length (lc) = " << lc << endl;
-    cout << "Integration Order = " << intOrder << endl;
     cout << "Beginning run... " << endl;
     cout << endl;
 
@@ -1574,16 +1533,17 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
     FILE * pFile;
     pFile = fopen( vtkFile.c_str(), "a" );
     //int pointData = _NodPos.size();
+
     fprintf ( pFile, "POINT_DATA %d", Nnod);
     fprintf ( pFile, "\nVECTORS displacements float\n" );
     for ( unsigned i = 0; i < u.size(); i++ ) {
-        double dx = u[i];	//Dis[i][0][0]
+        double dx = printable(u[i]);	//Dis[i][0][0]
         double dy = 0.0;
         fprintf ( pFile, " %12.3e %12.3e %12.3e\n", dx, dy, 0.0 );
     }
     fprintf ( pFile, "\nVECTORS velocities float\n" );
     for ( unsigned i = 0; i < v.size(); i++ ) {
-        double vx = v[i];
+        double vx = printable(v[i]);
         double vy = 0.0;
         fprintf ( pFile, " %12.3e %12.3e %12.3e\n", vx, vy, 0.0 );
     }
@@ -1591,7 +1551,7 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
 
     fprintf ( pFile, "\nSCALARS phi float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %12.3e \n", phi[i]);
+    for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %12.3e \n", printable(phi[i]));
     fprintf ( pFile, "\n" );
     
     fprintf ( pFile, "\nSCALARS inTLSnode int\n" );
@@ -1601,7 +1561,7 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
     
     fprintf ( pFile, "\nSCALARS absGradPhi float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nnod; i++ ) fprintf ( pFile, " %12.3e \n", fabs(gradPhi[i]));
+    for ( unsigned i = 0; i < Nnod; i++ ) fprintf ( pFile, " %12.3e \n", printable(fabs(gradPhi[i])));
     fprintf ( pFile, "\n" );
     
     fclose( pFile );
@@ -1614,33 +1574,33 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile, const unsigne
     fprintf( pFile, "CELL_DATA %d", Ncell );
     fprintf( pFile, "\nSCALARS stress float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", s[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", printable(s[i]));
     fprintf( pFile, "\n" );
 
     fprintf( pFile, "\nSCALARS strain float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e\n", e[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e\n", printable(e[i]));
     fprintf( pFile, "\n" );
 
     fprintf( pFile, "\nSCALARS Yraw/Yc float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", e[i]*e[i]*E*0.5/Yc);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", printable(e[i]*e[i]*E*0.5/Yc));
     fprintf( pFile, "\n" );
 
     fprintf( pFile, "\nSCALARS Y/Yc float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", Y[i]/Yc);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", printable(Y[i]/Yc));
     fprintf( pFile, "\n" );
 
     fprintf ( pFile, "\nSCALARS damage float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", d[i]);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", printable(d[i]));
     fprintf ( pFile, "\n" );
 
 	
     fprintf ( pFile, "\nSCALARS damageRate float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", (d[i] - d_1[i]) / dt);
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", printable((d[i] - d_1[i]) / dt));
     fprintf ( pFile, "\n" );
 
     fprintf( pFile, "\nSCALARS inTLS int\n");

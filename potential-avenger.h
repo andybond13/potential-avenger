@@ -29,7 +29,7 @@ double end_t;
 unsigned Nelt;
 unsigned Nnod;
 double lc;
-unsigned intOrder;
+unsigned startWithLoad;
 unsigned printVTK;
 bool oneAtATime;
 double minOpenDist;
