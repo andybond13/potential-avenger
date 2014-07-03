@@ -497,16 +497,12 @@ void PotentialAvenger::checkInTLS(const vector<Segment*>& segments, vector<unsig
 	nodes.assign(Nnod,0);
     //check nodes; 1 = in TLS zone, 0 = not
     if (nucleated > 0) {
-    	for (unsigned k = 0; k < segments.size(); ++k) {
-            if (segments[k]->phipeak <= 0.0) continue;
-            for (unsigned j = 0; j < segments[k]->indices.size(); ++j) {
-    			unsigned index = segments[k]->indices[j];
-				//compare to phiL on both sides (if possible). inTLS if phiNL > max(phiL)
-				double phiLocal = 0.0;
-				if (index > 0) phiLocal = max(phiLocal, phiL[index]);
-				if (index < Nnod-1) phiLocal = max(phiLocal, phiL[index+1]);
-				if (phiNL[index] >= phiLocal) nodes[index] = 1;
-            }
+        for (unsigned index = 0; index < Nnod; ++index) {
+			//compare to phiL on both sides (if possible). inTLS if phiNL > max(phiL)
+			double phiLocal = 0.0;
+			if (index > 0) phiLocal = max(phiLocal, phiL[index]);
+			if (index < Nnod-1) phiLocal = max(phiLocal, phiL[index+1]);
+			if (phiNL[index] >= phiLocal) nodes[index] = 1;
     	}
     }
 //assert(elem.size() == inTLS.size() );
@@ -899,10 +895,10 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
                     else tangent_Y += (0.5 * E * e[j+1] * e[j+1] - dH(j,0.0) - Ycv[j])  * dm.dp(0.);
                        
                     loop_tangent = loop_tangent + 1;
-                } else if  (phi[j] <= 0 && phi[j+1] > 0) {
-                    double delta = h * fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
+                } else if  (phiNL[j] <= 0 && phiNL[j+1] > 0) {
+                    double delta = h * fabs(phiNL[j+1]) / (fabs(phiNL[j])+fabs(phiNL[j+1])); //phi>0 portion
                     for (unsigned k = 0; k < pg.size(); ++k) {
-                        double philoc = pg[k] * phi[j+1];
+                        double philoc = pg[k] * phiNL[j+1];
                         residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
                         tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc);
                     }
