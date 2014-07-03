@@ -146,16 +146,16 @@ void PotentialAvenger::run() {
 
     Nnod = Nelt+1;
     _Nt = 0;
-    E = 1; //(beton)
-    rho = 1; //(beton)
-    A = 1; // barre de 10cm sur 10cm
+    E = 610.0; //(beton)
+    rho = 3.9e-6; //(beton)
+    A = 0.2; // barre de 10cm sur 10cm
     double c = sqrt(E/rho);
-    L = 1;
+    L = 1.0;
     h = 1/static_cast<double>(Nelt); //
     double cfl = 1./ts_refine;
     dt = cfl * h/c;//
-    Yc = E/10;
     unsigned Ntim = Nelt*ts_refine*end_t*c;
+    Yc = 8.1967e-4;//E/10;
     ec = sqrt(2 * Yc / E);
     sigc = E * ec;
 
@@ -188,19 +188,18 @@ void PotentialAvenger::run() {
     tot_energy = 0.0;
     vector<Fragment*> fragment_list;
 
-    //Matrix bpos = Matrix(Ntim, Nelt);
-    //Matrix grad = Matrix(Ntim, Nelt);
     ustat = vector<double>(Nnod,0);
     Ystat = vector<double>(Nnod,0);
     u = vector<double>(Nnod,0);
     v = vector<double>(Nnod,0);
     a = vector<double>(Nnod,0);
-    phi = vector<double>(Nnod,0);
+    phiL = vector<double>(Nelt,0);
+    phiNL = vector<double>(Nnod,0);
 
-    phi_1 = vector<double>(Nnod,0);
+    phiNL_1 = vector<double>(Nnod,0);
     vector<double> phidot;
-    gradPhi = vector<double>(Nnod,0.0);
-    //vector<double> ddotbar(Ntim,0);
+    gradPhiL = vector<double>(Nnod,0.0);
+    gradPhiNL = vector<double>(Nnod,0.0);
 
     vector<unsigned> nbiter = vector<unsigned>(Ntim,0);
     nfrags = vector<unsigned>(Ntim,0);
@@ -239,7 +238,8 @@ void PotentialAvenger::run() {
     for (unsigned j = 0; j < Nnod; ++j) {
         u[j] = x[j] * e0;//x[j] * ec * L * 0.999*(1-vbc);
         ustat[j] = 0.0;//x[j] * ec * L * 0.999*(1-vbc);
-        phi[j] = -1;//(2*h-x[j])*(1-vbc)-vbc;
+        phiL[j] = -1;//(2*h-x[j])*(1-vbc)-vbc;
+        phiNL[j] = -1;//(2*h-x[j])*(1-vbc)-vbc;
     }
 
     /*
@@ -254,7 +254,8 @@ void PotentialAvenger::run() {
     checkInTLS(segments,inTLS,inTLSnode);
 
     //calculate stresses
-    calculateStresses(pg,wg,segments);
+    calculateStressesL(pg,wg);
+    calculateStressesNL(pg,wg,segments);
 
     //acceleration
     a[0] = 0;
@@ -262,7 +263,7 @@ void PotentialAvenger::run() {
     for (unsigned j = 1; j < Nnod-1; ++j)  a[j] = A*(s[j] - s[j-1]) /m[j];
 
     nbiter[0] = 0;
-    analyzeDamage(x,phi,h,segments);
+    analyzeDamage(x,phiNL,h,segments);
     unsigned len = 0;
     for (unsigned l = 0; l < segments.size(); ++l) {
         if (segments[l]->size() == 0) continue;
@@ -271,7 +272,7 @@ void PotentialAvenger::run() {
     phidot.resize(len);
 
     //print data to file
-    vector<double>fragLength = findFragments(dm, segments,phi,nfrags[0],fragment_list);
+    vector<double>fragLength = findFragments(dm, phiL, phiNL,nfrags[0],segments);
     calculateEnergies(0,pg,wg);
     if (printVTK != 0) printVtk(_Nt);
     printFrags(fragLength);
@@ -287,7 +288,7 @@ void PotentialAvenger::run() {
         vector<double> v_1 = vector<double>(Nnod,0); v_1 = v; v.assign(Nnod,0.0);
         vector<double> a_1 = vector<double>(Nnod,0); a_1 = a; a.assign(Nnod,0.0);
         d_1 = vector<double>(Nnod,0); d_1 = d; d.assign(Nnod,0.0);
-        phi_1 = phi;
+        phiNL_1 = phiNL;
 
 
         //prediction
@@ -302,32 +303,50 @@ void PotentialAvenger::run() {
             //b=0.5*E*e(i,j)*e(i,j)-Yc;
         }
 
+        //updating the stress and level-set fields
+		//local
+        calculateStressesL(pg,wg); 
+        updateLevelSetL(i,nbiter,segments,pg,wg);
+		//non-local / TLS
+		if (localOnly == 0) {
+        	updateLevelSetNL(i,nbiter,segments,pg,wg);
+        	calculateStressesNL(pg,wg,segments);
+		} 
         // moving the localization front
         // we compute a = integral (Yn+1 - Yc) d' in the current non-local zone
         // then we compute b = (Yn+1-Yc) d' on the front
         // the shift in level set if the ratio of the two.
-        if (localOnly == 0) updateLevelSet(i,nbiter,segments,pg,wg);
 
+
+                calculateLevelSetGradientL(d, gradPhiL);
+                calculateLevelSetGradientNL(d, gradPhiNL);
         //check for nucleation
+		unsigned numNuc = 0;
         if (localOnly == 0) {
 	    	if (alpha == 0) {
 	    		//non-local-only model
     	        vector<double> Yin;
 	            for (unsigned l = 0; l < Nelt; ++l)  Yin.push_back(0.5*E*e[l]*e[l]);
     	        string elemOrNodal="elem";
-            	checkFailureCriteria(t[i],x,phi,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments);//delete this 0.5*h rather than 2*h
+            	numNuc = checkFailureCriteria(i,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments, nbiter, pg, wg);//delete this 0.5*h rather than 2*h
     		} else {
 		    	//local / non-local hybrid model
-		    	calculateLevelSetGradient(d_1, gradPhi);
+		    	calculateLevelSetGradientL(d, gradPhiL);
+		    	calculateLevelSetGradientNL(d, gradPhiNL);
 		    	string elemOrNodal = "nodal";
 		    	vector<double> gradLimit(Nnod,1.0);
-		    	checkFailureCriteria(t[i],x,phi,gradLimit,elemOrNodal,gradPhi,true,true, 1.0*h, segments);
+		    	numNuc = checkFailureCriteria(i,gradLimit,elemOrNodal,gradPhiL,true,true, 1.0*h, segments, nbiter, pg, wg);
 		    }
         }
 
         //enforce phi constraints - update segments
-        analyzeDamage(x,phi,h,segments);
+        analyzeDamage(x,phiNL,h,segments);
 
+		if (numNuc > 0) {
+            updateLevelSetNL(i,nbiter,segments,pg,wg);
+            checkInTLS(segments,inTLS,inTLSnode);
+            calculateStressesNL(pg,wg,segments);
+		}
         int index = -1;
         for (unsigned l = 0; l < segments.size(); ++l) {
             if (segments[l]->size() == 0) continue;
@@ -341,7 +360,7 @@ void PotentialAvenger::run() {
                 len++;
             }
             phidot.resize(len);
-            phidot[index] = (phi[smid] - phi_1[smid])/dt;
+            phidot[index] = (phiNL[smid] - phiNL_1[smid])/dt;
             if (phidot[index] * dt > h*1.01 ) {
                 printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t[i],l,phidot[index]*dt/h);
             }
@@ -353,13 +372,10 @@ void PotentialAvenger::run() {
        
         calculateDmaxAlt(pg,wg); 
 
-		//updating the stress
-        calculateStresses(pg,wg,segments);
-        
-        for (unsigned j = 1; j < Nnod-1; ++j)  phi[j] = max(phi[j], phi_1[j]);
+        for (unsigned j = 1; j < Nnod-1; ++j)  phiNL[j] = max(phiNL[j], phiNL_1[j]);
 
 		//acceleration
-        if (phi[0] <= lc) a[0] = 0;
+        if (max(phiL[0],phiNL[0]) <= lc) a[0] = 0;
         else a[0] =  A*s[0]/m[0];
         a[Nnod-1] = 0; //note: this is a constraint which was hidden. if free, it would be -s(i,Nnod)/m(j);
         for (unsigned j = 1; j < Nnod - 1; ++j) a[j] = A*(s[j] - s[j-1]) /m[j];
@@ -369,14 +385,18 @@ void PotentialAvenger::run() {
 
         //record number of fragments and quantities per fragment
         fragLength.clear();
-        fragLength = findFragments(dm, segments,phi,nfrags[i],fragment_list);
+        fragLength = findFragments(dm, phiL, phiNL, nfrags[i],segments);
         _numFrag = nfrags[i];
 
         //calculate energies
         calculateEnergies(i,pg,wg);
 
         //update gradient for printing
-		calculateLevelSetGradient(d, gradPhi);
+		calculateLevelSetGradientL(d, gradPhiL);
+		calculateLevelSetGradientNL(d, gradPhiNL);
+
+        //check enforcement of constraints
+        checkConstraints(gradPhiL,gradPhiNL,segments);
 
 		//print the rest of the table/graph data
         if (printVTK != 0) if ( ( _Nt % printVTK) == 0 ) {printVtk(_Nt); cout << "*t = " << t[i] << endl;}
@@ -396,7 +416,7 @@ void PotentialAvenger::run() {
 	}
      nfrags[Ntim-1] = fragLength.size(); 
 
-    printf("Final number of fragments: %i \nMinimum fragment length: %f    avg = %f\nFinal dissipated energy: %3.3e   = local %3.3e + TLS %3.3e  (%f/%f)\n",nfrags[Ntim-1],minfrag,2.0*L/static_cast<double>(nfrags[Ntim-1]),dissip_energy,dissip_energy_local,dissip_energy_TLS,dissip_energy_local/dissip_energy,dissip_energy_TLS/dissip_energy);
+    printf("Final number of fragments: %i \nMinimum fragment length: %f    avg = %f\nFinal dissipated energy: %3.3e   = local %3.3e + TLS %3.3e  (%f/%f)\n",nfrags[Ntim-1],minfrag,sumfrag*L/static_cast<double>(nfrags[Ntim-1]),dissip_energy,dissip_energy_local,dissip_energy_TLS,dissip_energy_local/dissip_energy,dissip_energy_TLS/dissip_energy);
     double alt_dissip_energy = 0.0 + ext_energy - strain_energy - kinetic_energy; 
     printf("alt. dissipated energy: %3.3e \n",alt_dissip_energy); 
    cout << " fragment total length " << sumfrag << "     powder length = " << 2.0*L - sumfrag << endl;
@@ -428,7 +448,7 @@ void PotentialAvenger::calculateDmaxAlt(const vector<double>& pg, const vector<d
          double prop = 0.0;
          vector<double> dloc = vector<double>(2); 
          for (unsigned k = 0; k < pg.size(); ++k) {
-             double philoc1 = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
+             double philoc1 = pg[k] * phiL[j] + (1-pg[k]) * phiL[j+1];
              dloc[k] = 0.5 * dm.dval(philoc1);
              prop += wg[k] * dloc[k];
          }
@@ -437,19 +457,37 @@ void PotentialAvenger::calculateDmaxAlt(const vector<double>& pg, const vector<d
     return;
 }
 
-void PotentialAvenger::calculateLevelSetGradient( const vector<double>& dV, vector<double>& gradientPhi) {
+void PotentialAvenger::calculateLevelSetGradientL( const vector<double>& dV, vector<double>& gradientPhi) {
 	//calculate the gradient of the levelset (local model). This will be used to see if the |gradPhi| > 1,
 	//in which case, a non-local zone will be inserted
 	assert(gradientPhi.size() == Nnod);
-    gradientPhi[0] = (phi[1]-phi[0])/(h); //gradient between two elements middle
-    gradientPhi[Nnod-1] = (phi[Nnod-1]-phi[Nnod-2])/(h); //gradient between two elements middle
+    assert(gradientPhi.size() > 4);
 	for (unsigned i = 1; i < Nnod-1; ++i) {
-		double phiM = dm.phi(dV[i]);
-        double phiM1 = dm.phi(dV[i-1]);
-		if (inTLS[i]) phiM = (phi[i+1]+phi[i])*0.5;
-		if (inTLS[i-1]) phiM1 = (phi[i]+phi[i-1])*0.5;
+		double phiM = phiL[i];
+        double phiM1 = phiL[i-1];
 		gradientPhi[i] = (phiM - phiM1) / h;
 	}
+    gradientPhi[0] = gradientPhi[1]; 
+    gradientPhi[Nnod-1] = gradientPhi[Nnod-2];
+
+	for (unsigned i = 0; i < Nnod; ++i) if (inTLS[i]) gradientPhi[i] = 0.0; 
+    return;
+}
+
+void PotentialAvenger::calculateLevelSetGradientNL( const vector<double>& dV, vector<double>& gradientPhi) {
+    //calculate the gradient of the levelset (non-local model). This will be used to see if the |gradPhi| > 1,
+    //in which case, a non-local zone will be inserted
+    assert(gradientPhi.size() == Nnod);
+    assert(gradientPhi.size() > 4);
+    //gradientPhi[0] = (phiNL[1]-phiNL[0])/(h); //first-order boundary difference
+    gradientPhi[0] = (-phiNL[2]+4*phiNL[1]-3*phiNL[0])/(2*h); //second-order boundary difference
+    //gradientPhi[Nnod-1] = (phiNL[Nnod-1]-phiNL[Nnod-2])/(h); //first-order boundary difference
+    gradientPhi[Nnod-1] = (3*phiNL[Nnod-1]-4*phiNL[Nnod-2]+phiNL[Nnod-3])/(2*h); //second-order boundary difference
+    for (unsigned i = 1; i < Nnod-1; ++i) {
+       double phiM = 0.5 * (phiNL[i] + phiNL[i+1]); 
+       double phiM1 = 0.5* (phiNL[i] + phiNL[i-1]);
+       gradientPhi[i] = (phiM - phiM1) / h;
+    }
     return;
 }
 
@@ -462,7 +500,12 @@ void PotentialAvenger::checkInTLS(const vector<Segment*>& segments, vector<unsig
     	for (unsigned k = 0; k < segments.size(); ++k) {
             if (segments[k]->phipeak <= 0.0) continue;
             for (unsigned j = 0; j < segments[k]->indices.size(); ++j) {
-    			nodes[segments[k]->indices[j]] = 1;
+    			unsigned index = segments[k]->indices[j];
+				//compare to phiL on both sides (if possible). inTLS if phiNL > max(phiL)
+				double phiLocal = 0.0;
+				if (index > 0) phiLocal = max(phiLocal, phiL[index]);
+				if (index < Nnod-1) phiLocal = max(phiLocal, phiL[index+1]);
+				if (phiNL[index] >= phiLocal) nodes[index] = 1;
             }
     	}
     }
@@ -476,31 +519,66 @@ void PotentialAvenger::checkInTLS(const vector<Segment*>& segments, vector<unsig
     return;
 }
 
-void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<double>& wg, vector<Segment*>& segments) {
-	//if in local, clear phi (clear if not in TLS = clear all and copy if in TLS)
-    for (unsigned j = 0; j < Nnod; ++j) {
-        if (inTLSnode[j] == 0 && alpha > 0.0) phi[j] = 0;
-    }
+void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, const vector<double>& gradientPhiNL, const vector<Segment*>& segments) {
+
+	//check gradient of level-set
+	assert(gradientPhiL.size() == Nnod);
+	assert(gradientPhiNL.size() == Nnod);
+   
+	if (localOnly == 0) for (unsigned j = 0; j < Nnod; ++j) assert(fabs(gradientPhiL[j]) <= 1.0001);
+    if (localOnly == 0) for (unsigned j = 0; j < Nnod; ++j) assert(fabs(gradientPhiNL[j]) <= 1.0001);
+
+    //for local: check that Y <= Yc
+    for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0 && d[j] < 1.0) assert( Y[j]/Yc < 1.0001);
+
+	//for non-local: check that Ybar <= Yc
+    for (unsigned j = 0; j < segments.size(); ++j) assert( (segments[j]->YbarmYc)/Yc <= 0.0001);
+
+
+	//for non-local: check that gradient of phi is 1 on all elements
+	if (nucleated > 0) {
+		for (unsigned j = 0; j < Nelt; ++j) {
+        	bool hasPeak = false;
+        	//check for peaks -> hasPeak (false = antipeak)
+        	for (unsigned l = 0; l < segments.size(); ++l) {
+            	if ( (segments[l]->xpeak >= x[j]) && (segments[l]->xpeak <= x[j+1]) ) hasPeak = true;
+        	}
+
+			if (fabs(fabs(phiNL[j] - phiNL[j+1]) - h) > 0.01*h && !hasPeak)  cout << " element " << j << " phiNL I = " << phiNL[j] << "   phiNL I-1 " << phiNL[j+1] << endl;
+			assert( fabs(fabs(phiNL[j] - phiNL[j+1]) - h) < 0.01*h || hasPeak); 
+
+		}
+	}
+
+	return;
+}
+
+void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vector<double>& wg, vector<Segment*>& segments) {
+    
+	vector<double> dLocal = d;
+
     for (unsigned j = 0; j < Nelt; ++j) {
-		d_quad[j].clear();
+
+		if (inTLS[j] == 0) continue; //skip if local!
+		
+        d_quad[j].clear();
 		d_quad_wt[j].clear();
 	    s[j] = 0;
 	    d[j] = 0;
    		if ((inTLS[j] == 1 && localOnly == 0) || alpha ==0.0 ) { 	//in TLS: use non-local damage model
 	        assert(pg.size() == wg.size());
 	
-			phi[j] = max(phi[j],phi_1[j]);	
-			phi[j+1] = max(phi[j+1],phi_1[j+1]);	
+			phiNL[j] = max(phiNL[j],phiNL_1[j]);	
+			phiNL[j+1] = max(phiNL[j+1],phiNL_1[j+1]);	
 	        e[j] = (u[j+1] - u[j])/h;
   	    	vector<double> dloc(pg.size(),0.0);
 			if (inTLSnode[j] == 1 && inTLSnode[j+1] == 0) {
-				//element at transition
-				double phiLocal = phi[j+1];
-				if (d_type[j] == 0) phiLocal = dm.phi(d_1[j]);
-				double delta = fabs(phi[j] + phiLocal);
+				//element at transition: left in, right out
+				double phiLocal = phiL[j+1];
+				double delta = fabs(phiNL[j] - phiLocal); 
                 delta = max(delta, 0.0); delta = min(delta, h);
         	    for (unsigned k = 0; k < pg.size(); ++k) {
-					double philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phiLocal);
+					double philoc1 = pg[k] * phiNL[j] + (1-pg[k]) * (phiLocal);
 					d_quad[j].push_back(dm.dval(philoc1));
 					d_quad_wt[j].push_back(wg[k] * delta/h);
 					dloc[k] = dm.dval(philoc1);
@@ -514,13 +592,12 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
                 
 
 			} else if (inTLSnode[j] == 0 && inTLSnode[j+1] == 1) {
-				//element at transition
-				double phiLocal = phi[j];
-				if (d_type[j] == 0) phiLocal = dm.phi(d_1[j]);
-                double delta = fabs(phiLocal + phi[j+1]) + h;
+				//element at transition: left out, right in
+				double phiLocal = phiL[j];
+                double delta = h - fabs(phiLocal - phiNL[j+1]);
                 delta = max(delta, 0.0); delta = min(delta, h);
                 for (unsigned k = 0; k < pg.size(); ++k) {
-                    double philoc1 = pg[k] * phiLocal + (1-pg[k]) * (phi[j+1]);
+                    double philoc1 = pg[k] * phiLocal + (1-pg[k]) * (phiNL[j+1]);
                     d_quad[j].push_back(dm.dval(philoc1));
                     d_quad_wt[j].push_back(wg[k] * delta/h);
                     dloc[k] = dm.dval(philoc1);
@@ -534,11 +611,12 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
                 d_quad_wt[j].push_back(1.0 * (h-delta)/h );
 //cout << " added 0 " << dm.dval(phiLocal) <<  " ( " << (h-delta)/h << " ) " << endl;
 
-    	    } else if (phi[j] > 0  && phi[j+1] > 0) {
+    	    } else if (phiNL[j] > 0  && phiNL[j+1] > 0) {
+				//both sides positive
         	    for (unsigned k = 0; k < pg.size(); ++k) {
-            	    if (fabs(phi[j] - phi[j+1]) < h) {
+            	    if (fabs(phiNL[j] - phiNL[j+1]) < h) {
                 	    //there's a peak/anti-peak inside!
-                    	double delta = 0.5*(h - phi[j+1] + phi[j]); //delta computed for anti-peak
+                    	double delta = 0.5*(h - phiNL[j+1] + phiNL[j]); //delta computed for anti-peak
 
 						//see if any peaks are within element -> reverse delta
 						bool flag = false;
@@ -548,17 +626,17 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
 						if (flag == true)  delta = h - delta;
 
 	                    //subdivide interval into two: [x1, x1+delta] [x1+delta, x2], effectively double number of integration points
-    	                double philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phi[j] - delta);
-    	                if (flag) philoc1 = pg[k] * phi[j] + (1-pg[k]) * (phi[j] + delta);
-        	            double philoc2 = pg[k] * (phi[j] - delta) + (1-pg[k]) * phi[j+1];
-        	            if (flag) philoc2 = pg[k] * (phi[j] + delta) + (1-pg[k]) * phi[j+1];
+    	                double philoc1 = pg[k] * phiNL[j] + (1-pg[k]) * (phiNL[j] - delta);
+    	                if (flag) philoc1 = pg[k] * phiNL[j] + (1-pg[k]) * (phiNL[j] + delta);
+        	            double philoc2 = pg[k] * (phiNL[j] - delta) + (1-pg[k]) * phiNL[j+1];
+        	            if (flag) philoc2 = pg[k] * (phiNL[j] + delta) + (1-pg[k]) * phiNL[j+1];
 						d_quad[j].push_back(dm.dval(philoc1));
 						d_quad[j].push_back(dm.dval(philoc2));
 						d_quad_wt[j].push_back(delta/h * wg[k]);
 						d_quad_wt[j].push_back((h-delta)/h * wg[k]);
             	        dloc[k] = delta/h * dm.dval(philoc1) + (h-delta)/h * dm.dval(philoc2);
                 	} else {
-	                    double philoc = pg[k] * phi[j] + (1-pg[k]) * phi[j+1];
+	                    double philoc = pg[k] * phiNL[j] + (1-pg[k]) * phiNL[j+1];
 						d_quad[j].push_back(dm.dval(philoc));
 						d_quad_wt[j].push_back(wg[k]);
     	                dloc[k] = dm.dval(philoc);
@@ -566,15 +644,17 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
             	    s[j] += wg[k] * (1-dloc[k]) * E * e[j];
 					d[j] += wg[k] * dloc[k];
 	            }
-    	    } else if  (phi[j] <= 0 && phi[j+1] <= 0) {
+    	    } else if  (phiNL[j] <= 0 && phiNL[j+1] <= 0) {
+				//both sides negative
         	    s[j] = E * e[j];
 			    d_quad[j].push_back(0.0);
 				d_quad_wt[j].push_back(1.0); 
-	        } else if  (phi[j] > 0 && phi[j+1] <= 0) {
-    	        double delta = fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1]));
+	        } else if  (phiNL[j] > 0 && phiNL[j+1] <= 0) {
+				//left side positive, right side negative
+    	        double delta = fabs(phiNL[j]) / (fabs(phiNL[j])+fabs(phiNL[j+1]));
         	    double sloc = 0;
             	for (unsigned k = 0; k < pg.size(); ++k) {
-                	double philoc = pg[k] * phi[j];
+                	double philoc = pg[k] * phiNL[j];
 	                dloc[k] = dm.dval(philoc);
     	            sloc += wg[k] * (1-dloc[k]) * E * e[j];
 			        d[j] += wg[k] * dloc[k] * delta; //+ ( 1-delta) * 0.0
@@ -584,11 +664,12 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
 				d_quad[j].push_back(0.0);
 				d_quad_wt[j].push_back( 1-delta );
             	s[j] = delta *  sloc +  (1-delta) * E * e[j];
-	        } else if (phi[j] <= 0 && phi[j+1] > 0) {
-    	        double delta = fabs(phi[j+1]) / (fabs(phi[j])+fabs(phi[j+1]));
+	        } else if (phiNL[j] <= 0 && phiNL[j+1] > 0) {
+				//left side negative, right side positive
+    	        double delta = fabs(phiNL[j+1]) / (fabs(phiNL[j])+fabs(phiNL[j+1]));
         	    double sloc = 0;
             	for (unsigned k = 0; k < pg.size(); ++k) {
-                	double philoc = pg[k] * phi[j+1];
+                	double philoc = pg[k] * phiNL[j+1];
 	                dloc[k] = dm.dval(philoc);
     	            sloc += wg[k] * (1-dloc[k]) * E * e[j];
 			        d[j] += wg[k] * dloc[k] * delta; //+ ( 1-delta) * 0.0
@@ -600,10 +681,12 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
             	s[j] = delta *  sloc +  (1-delta) * E * e[j];
 	        }
 
+			assert(d[j] >= dLocal[j]);
             if (d[j] > d_max[j]) d_max[j] = d[j];		//update maximum damage
 
 			if (inTLSnode[j] + inTLSnode[j+1] == 1) {
-				if (d[j] < d_max[j]) d[j] = d_max[j];
+				//if (d[j] < d_max[j]) d[j] = d_max[j];
+			    assert(d[j] >= d_max[j]);
 			} else {
 			    if (d[j] < d_max[j]) assert(d[j] >= d_max_alt[j]);
 			}
@@ -613,35 +696,57 @@ void PotentialAvenger::calculateStresses(const vector<double>& pg, const vector<
                 if (e[j] < 0) s[j] = e[j] * E;
             }
 			d_type[j] = 1;
-		} else { 		//inTLS == 0 : local damage model
+		}
+
+        assert(d_quad[j].size() == d_quad_wt[j].size());
+        assert(fabs(sum(d_quad_wt[j]) - 1.0) < 0.0001);
+        assert(d_quad[j].size() == d_quad_wt[j].size());
+	}
+
+	return;
+}
+void PotentialAvenger::calculateStressesL(const vector<double>& pg, const vector<double>& wg) {
+
+	for (unsigned j = 0; j < Nelt; ++j) {
+	    //inTLS == 0 : local damage model
+
+        unsigned nodesInTLS = 0;
+        if (inTLSnode[j]) nodesInTLS++;
+        if (inTLSnode[j+1]) nodesInTLS++;
+        if (nodesInTLS >= 2) continue;
+
+
+		d[j] = 0.0;
+        s[j] = 0.0;
+		double dee = d_1[j];
+		
+		//check to see if damage needs to be recalculated; (local model so no need to use quadrature for dH)
+		if (0.5 * E * e[j] * e[j] > dH(j,d_1[j]) + Yc) 	{
 			double factor = sqrt(2.0 * Yc / (E * e[j] * e[j]) ); 
-            //double factor = sqrt(8.0 * Yc * Yc - 2.0 * Yc * E * e[j] * e[j]) / (E * e[j] * e[j] - 4 * Yc);
-			double dee = (1.0 - fabs(factor)) / alpha;
+			dee = (1.0 - fabs(factor)) / alpha;
             if (dee < 0.0) //E * e[j] * e[j] < 2.0 * Yc) 
 				dee = 0.0;			//not damaged if Y < Yc
             if (dee > 1.0)
                 dee = 1.0;
-            unsigned nodesInTLS = 0;
-            if (inTLSnode[j]) nodesInTLS++;
-            if (inTLSnode[j+1]) nodesInTLS++;
             assert(nodesInTLS < 2);
-            d[j] = dee;
-            if (dee > d_max[j]) d_max[j] = dee;		//update maximum damage
-			if (dee < d_max[j]) {dee = d_max[j]; d[j] = d_max[j];}		//damage cannot decrease
-            s[j] = E * (1.0 - dee) * e[j];
-            if (fullCompression) {
-                //this makes compression fully in contact no matter what the damage
-                if (e[j] < 0) s[j] = e[j] * E;
-            }
-			phi[j]						+= 0.5 * dm.phi(dee);	//give half to left node
-			phi[j+1]					+= 0.5 * dm.phi(dee);	//give half to right node
-            if (j == 0)			phi[j]	+= 0.5 * dm.phi(dee);	//if end, give 2 halfs to left node
-            if (j == Nelt - 1)	phi[j+1]+= 0.5 * dm.phi(dee);	//if end, give 2 halfs to right node
-
-			d_quad[j].push_back(d[j]);
-            d_quad_wt[j].push_back(1.0);
-			d_type[j] = 0;
 		}
+		d[j] = dee;
+        s[j] = E * (1.0 - dee) * e[j];
+		assert(d[j] >= d_1[j]);
+		if (d[j] < 1.0) assert(0.5 * E * e[j] * e[j] - dH(j,d[j]) <= Yc * 1.0001);
+		
+        if (fullCompression) {
+            //this makes compression fully in contact no matter what the damage
+            if (e[j] < 0) s[j] = e[j] * E;
+        }
+
+		d_quad[j].clear();
+		d_quad_wt[j].clear();
+
+		d_quad[j].push_back(d[j]);
+        d_quad_wt[j].push_back(1.0);
+		d_type[j] = 0;
+		
 		assert(d_quad[j].size() == d_quad_wt[j].size());
 		assert(fabs(sum(d_quad_wt[j]) - 1.0) < 0.0001);
 		assert(d_quad[j].size() == d_quad_wt[j].size());
@@ -709,17 +814,34 @@ double PotentialAvenger::dH (const unsigned j, const double dee) const {
     return (Ycv[j] * alpha * dee) * (2.0 - alpha * dee)/pow(1.0 - alpha * dee,2);
 }    
 
-void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg ) {
-    
+void PotentialAvenger::updateLevelSetL( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg ) {
+
+     for (unsigned j = 0; j < Nelt; ++j) {
+		double dee = d[j];
+        if (inTLS[j] == 0) 	phiL[j] = dm.phi(dee);
+		else 				phiL[j] = 0.0;
+     }
+	 return;
+}
+
+void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg ) {
+	//non-local nodes   
+
+	//save phiNL beforehand
+	vector<double> phiNL_before = phiNL;
+ 
     for (unsigned l = 0; l < segments.size(); ++l) {
         if (segments[l]->size()==0) continue;//segments.erase(segments.begin()+l);
         unsigned sbegin = segments[l]->begin();
         unsigned send = segments[l]->end();
         
+		//clear Ybar
+		segments[l]->YbarmYc = 0.0;
+ 
         //skip if all negative
         bool allNeg = true;
         for (unsigned k = sbegin; k <= send; ++k) {
-            if (phi[k] != -1) {
+            if (phiNL[k] != -1) {
                 allNeg = false;
                 break;
             }
@@ -741,31 +863,34 @@ void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbit
             double residu_Y = 0; double tangent_Y = 0;
             unsigned loop_residu = 0;
             unsigned loop_tangent = 0;
-            for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send,Nelt-2); ++j) {
+            for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send+1,Nelt-1); ++j) {
                 if (j < 0) continue;
+
+				if (inTLSnode[j] == 0) continue;
+
                 assert(pg.size() == wg.size());
-                if (phi[j] > 0 && phi[j+1] > 0) {
+                if (phiNL[j] > 0 && phiNL[j+1] > 0) {
                     for (unsigned k = 0; k < pg.size(); ++k) {
                         double philoc = 0;
                         if (segments[l]->slope == 1 && x[j+1] > segments[l]->xpeak && x[j] < segments[l]->xpeak) {//if peak is within element, only integrate the side with the proper slope
                             double delta = segments[l]->xpeak - x[j];
                             assert(delta > 0); assert( delta < h);
-                            philoc = pg[k]*(phi[j] + delta) + (1-pg[k]) * phi[j+1];              //shift quadrature to interval of interest
+                            philoc = pg[k]*(phiNL[j] + delta) + (1-pg[k]) * phiNL[j+1];              //shift quadrature to interval of interest
                         } else if (segments[l]->slope == -1 && x[j+1] > segments[l]->xpeak && x[j] < segments[l]->xpeak) { //if peak is within element, only integrate the side with the proper slope
                             double delta = segments[l]->xpeak - x[j];
                             assert(delta > 0); assert( delta < h);
-                            philoc = pg[k]*phi[j] + (1-pg[k]) * (phi[j] + delta);               //shift quadrature to interval of interest
+                            philoc = pg[k]*phiNL[j] + (1-pg[k]) * (phiNL[j] + delta);               //shift quadrature to interval of interest
                         } else {
-                            philoc = pg[k]*phi[j] + (1-pg[k]) * phi[j+1];
+                            philoc = pg[k]*phiNL[j] + (1-pg[k]) * phiNL[j+1];
                         }
                         residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
                         tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc);
                     }
                     loop_residu++;
-                } else if  (phi[j] > 0 && phi[j+1] <= 0) {
-                    double delta = h * fabs(phi[j]) / (fabs(phi[j])+fabs(phi[j+1])); //phi>0 portion
+                } else if  (phiNL[j] > 0 && phiNL[j+1] <= 0) {
+                    double delta = h * fabs(phiNL[j]) / (fabs(phiNL[j])+fabs(phiNL[j+1])); //phi>0 portion
                     for (unsigned k = 0; k < pg.size(); ++k) {
-                        double philoc = pg[k] * phi[j];
+                        double philoc = pg[k] * phiNL[j];
                         residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
                         tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc);
                     }
@@ -787,32 +912,29 @@ void PotentialAvenger::updateLevelSet( const unsigned& i, vector<unsigned>& nbit
                     loop_tangent++;
                     
                 }
-            }
+            }//end loop-nodes
 
-if (dm.dval(segments[l]->phimin) == 1 && nbiter[i] == 1) goto next;
-            
             // law Ybar = Yc
             if (1==1) {
                 int flag = 1; //0 is exterior (damage centered on edge of domain); 1 is interior
                 if (l == 1 && segments[l]->begin() == 0) flag = 0;
                 if (l == segments.size()-1 && segments[l]->end() == Nnod-1) flag = 0;
-                  
-                double phimax = phi[sbegin];
-                double phimin = phi[sbegin];
+                double phimax = phiNL[sbegin];
+                double phimin = phiNL[sbegin];
                 unsigned iphimax = sbegin;
                 unsigned iphimin = sbegin;
                 for (unsigned k = sbegin; k <= send; ++k) {
-                    if (phi[k] > phimax) {
-                        phimax = phi[k];
+                    if (phiNL[k] > phimax) {
+                        phimax = phiNL[k];
                         iphimax = k;
                     }
-                    if (phi[k] < phimax) {
-                        phimin = phi[k];
+                    if (phiNL[k] < phimax) {
+                        phimin = phiNL[k];
                         iphimin = k;
                     }
                 }
                 phimax = segments[l]->phipeak;// + dphi;//max(0.0,dphi);
-                phimin = segments[l]->phimin;
+if (dm.dval(phimin) == 1 && nbiter[i] == 1) goto next;
 if (phimin == phimax) goto next;
 
 
@@ -836,6 +958,7 @@ if (phimin == phimax) goto next;
 
                     
                 double YbarmYc = residu_Y/(dm.dval(phimax)-dm.dval(phimin));
+segments[l]->YbarmYc = YbarmYc;
                 double oldresidu = residu;
                 residu = YbarmYc/Yc;
                 err_crit = fabs(residu-oldresidu);
@@ -861,8 +984,8 @@ if (phimin == phimax) goto next;
             }
 
             for (unsigned j = sbegin; j <=send; ++j) {
-                phi[j] = phi_1[j] + dphi;
-                phi[j] = max(phi[j],phi_1[j]); //constraint: dphi >= 0
+                phiNL[j] = phiNL_before[j] + dphi;
+                phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
                 //enforcing limit of level-set motion
                 //phi[j] = min(phi_1[j]+h,phi[j]);
             }
@@ -870,14 +993,14 @@ if (phimin == phimax) goto next;
         
         next:
         err_crit = 0.0;
-        segments[l]->setPeak(x,phi); //segments[l].phipeak += dphi; 
+        segments[l]->setPeak(x,phiNL); //segments[l].phipeak += dphi; 
 
     } //for segments
 
     return;
 }
 
-void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal){
+void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal){
     //t      -time
     //x      -mesh
     //phi    -level-set calculated at this time-step
@@ -923,20 +1046,36 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
             } else gradient = -1.0;
             assert(gradient != 0);
 	        if (gradient == 1.0) {
-				double dcrit = d_1[loc];
-				phi[loc+1] = max(phi[loc+1], dm.phi(dcrit));
-				phi[loc] = max(phi[loc], dm.phi(dcrit));
-				phi[loc-1] = max(phi[loc-1], phi[loc] - h);
+				assert(loc >= 1);
+				double phicrit = max(max(phiL[loc-1],phiL[loc]),phiNL[loc]);
+				phiNL[loc-1] = max(max(phicrit-h,phiL[loc-1]),phiNL[loc-1]);
+				phiNL[loc] = phicrit;
+				if (loc+1 < static_cast<int>(Nnod)) phiNL[loc+1] = max(phicrit,phiL[loc+1]);
+				if (loc+1 < static_cast<int>(Nnod)) delta = 0.5 * (h + phiNL[loc+1] - phiNL[loc]);
     	    } else {
-				double dcrit;
-                if (loc >= 1) dcrit = d_1[loc-1];
-                else dcrit = d_1[loc];
-				if (loc >= 1) phi[loc-1] = max(phi[loc-1], dm.phi(dcrit));
-				phi[loc] = max(phi[loc], dm.phi(dcrit));
-				phi[loc+1] = max(phi[loc+1], phi[loc] - h);
+                assert(loc <= static_cast<int>(Nnod)-1);
+                double phicrit = max(max(phiL[loc-1],phiL[loc]),phiNL[loc]);
+                //phiNL[loc+1] = max(phicrit-h,phiNL[loc+1]); //max(max(phicrit-h,phiL[loc+1]),phiNL[loc+1]);
+                phiNL[loc+1] = max(max(phicrit-h,phiL[loc+1]),phiNL[loc+1]);
+                phiNL[loc] = phicrit;
+                if (loc-1 >= 0) phiNL[loc-1] = max(phicrit,phiL[loc-1]);
+				if (loc-1 >= 0) delta = 0.5 * (-h + phiNL[loc] - phiNL[loc-1]);
+
         	}
+             //create two new segments
+             if (xnuc[j] > x[0]) {
+                 Segment* seg1 = new Segment(xnuc[j]+delta,phiNL[loc]+fabs(delta),-1);
+                 seg1->indices.push_back(loc);
+                 newSegment.push_back(seg1);
+             }
+             if (xnuc[j] < x.back()) {
+                 Segment* seg2 = new Segment(xnuc[j]+delta,phiNL[loc]+fabs(delta),1);
+                 seg2->indices.push_back(loc+1);
+                 newSegment.push_back(seg2);
+             }
 
         } else {
+			//elem nucleation
 			inTLSnode[loc] = 1;
 			inTLSnode[loc+1] = 1;
 			inTLS[loc] = 1;
@@ -946,30 +1085,32 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
 			if (loc > 0) proposed2 = max(proposed2, dm.phi(d_1[loc-1]));	
 			if (loc < (int)Nnod-1) proposed1 = max(proposed1, dm.phi(d_1[loc+1]));	
 			if (loc < (int)Nnod-1) proposed2 = max(proposed2, dm.phi(d_1[loc+1]));	
-            phi[loc] = max(phi[loc], proposed1);
-            phi[loc+1] = max(phi[loc+1], proposed2);
+            phiNL[loc] = max(phiNL[loc], proposed1);
+            phiNL[loc+1] = max(phiNL[loc+1], proposed2);
+
+double zero = 0.0;
+            //create two new segments
+            if (xnuc[j] > x[0]) {
+                 Segment* seg1 = new Segment(xnuc[j]-delta*h*zero,phinuc[j]-delta*h*zero,-1);
+                 seg1->indices.push_back(loc);
+                 newSegment.push_back(seg1);
+             }
+             if (xnuc[j] < x.back()) {
+                 Segment* seg2 = new Segment(xnuc[j]+(1-delta)*h*zero,phinuc[j]-(1-delta)*h*zero,1);
+                 seg2->indices.push_back(loc+1);
+                 newSegment.push_back(seg2);
+             }
+
         }
         printf("crack nucleated, t = %f, x = %f \n",t,xnuc[j]);
-        double zero = 0;
         
-        //create two new segments
-        if (xnuc[j] > x[0]) {
-            Segment* seg1 = new Segment(xnuc[j]-delta*h*zero,phinuc[j]-delta*h*zero,-1);
-            seg1->indices.push_back(loc);
-            newSegment.push_back(seg1);
-        }
-        if (xnuc[j] < x[x.size()-1]) {
-            Segment* seg2 = new Segment(xnuc[j]+(1-delta)*h*zero,phinuc[j]-(1-delta)*h*zero,1);
-            seg2->indices.push_back(loc+1);
-            newSegment.push_back(seg2);
-        }
         //now that there has been nucleation, get rid of zero-slope segments
         vector<unsigned> delList;
         for (unsigned i = 0; i < newSegment.size(); ++i) {
             if (newSegment[i]->slope == 0 || newSegment[i]->phipeak == -1) delList.push_back(i);
         }
         while (delList.size() > 0) {
-            unsigned index = delList[delList.size()-1]; 
+            unsigned index = delList.back(); 
             newSegment.erase(newSegment.begin() + index);
             delList.pop_back();
         }
@@ -977,10 +1118,10 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& x, st
     }
 };
 
-vector<double> PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segment*>& newSegment, const std::vector<double>& phi, unsigned& nfrags, std::vector<Fragment*>& fragment_list) {
+vector<double> PotentialAvenger::findFragments(DamageModel& dm, const std::vector<double>& phiLocal, const std::vector<double>& phiNonLocal, unsigned& nfrags, const vector<Segment*>& segments) {
     
     //calculate total number of fragments (removing symmetry simplification)
-    vector<double> fragLength = fragmentLength(fragment_list); 
+    vector<double> fragLength = fragmentLength(segments); 
     nfrags = fragLength.size();
     fragmentStats(fragLength);   
 
@@ -988,52 +1129,150 @@ vector<double> PotentialAvenger::findFragments(DamageModel& dm, std::vector<Segm
 };
 
 
-vector<double> PotentialAvenger::fragmentLength(vector<Fragment*>& fragment_list) { 
-    
-	vector<double> fragLength;
-    vector<vector<int> > fragindex;
-    vector<int> powderindex;
+vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments) { 
+	
+    vector<double> fragLength;
+    double powderLength = 0.0;
 
 	//assign indices to fragments
     int begin = -1;
+    int firstbegin = -1;
     for (unsigned j = 0; j < Nelt; ++j) {
-        if (d[j] == 1.0 ) {
+		//don't add damage if whole element is damaged, either local or nonlocal
+        if ( (phiL[j] >= lc) || (phiNL[j] >= lc && phiNL[j+1] >= lc && fabs(phiNL[j]-phiNL[j+1]) == h) ) {
 			begin = -1;
-			powderindex.push_back(j);
-		} else {
-			if (begin == -1) {
-				begin = j;
-				fragindex.push_back(vector<int>(0));
-			}
-			fragindex[fragindex.size()-1].push_back(j);
+			powderLength += h;
+            continue;
 		}
+
+	    double solidLength = h;	
+		
+		//element partially failing (simple)
+		if ( (phiNL[j] >= lc || phiNL[j+1] >= lc) && ( fabs(phiNL[j]-phiNL[j+1]) == h) ) {
+			if (phiNL[j] < phiNL[j+1]) {
+				double delta = lc - phiNL[j];
+				assert(delta >= 0); assert(delta <= h);
+			    fragLength.back() += delta;	
+			    powderLength += (h - delta);
+			    
+			    solidLength = 0.0;
+			    begin = -1;
+			} else if (phiNL[j] > phiNL[j+1]) {
+                double delta = phiNL[j] - lc;
+                assert(delta >= 0); assert(delta <= h);
+                powderLength += delta;
+                
+                fragLength.push_back(0.0); //end old fragment, find length for new one
+                solidLength = h - delta;
+                begin = j;
+			} else {
+				assert(1==0);
+			}
+		}
+
+		//element partially failing (hat)
+		if ( (fabs(phiNL[j]-phiNL[j+1]) < h) && (phiNL[j] >= lc-h && phiNL[j+1] >= lc-h) ) {
+
+			bool hasPeak = false;
+			//check for peaks -> hasPeak (false = antipeak, true = peak)
+			for (unsigned l = 0; l < segments.size(); ++l) {
+				if ( (segments[l]->xpeak >= x[j]) && (segments[l]->xpeak <= x[j+1]) ) hasPeak = true;
+			}
+
+            if (hasPeak) {
+				//peak
+				solidLength = 0.0;
+				double delta = 0.5 * (phiNL[j+1] - phiNL[j] + h);
+				assert(delta >= 0); assert(delta <= h);
+				assert(phiNL[j] + delta >= lc);
+				//check for & deal with intersection on first slope
+				double s  = lc - phiNL[j];
+                assert(s <= delta);
+				if (s > 0) {
+					fragLength.back() += s;
+					powderLength += (delta - s);
+				} else {
+					powderLength += delta;
+				}
+				begin = -1;
+
+				//check for & deal with intersection on second slope
+                 s  = phiNL[j] + delta - lc;
+                assert(s >= 0);
+                if (s < (h-delta)) {
+                    powderLength += s;
+			        fragLength.push_back(0.0);
+					begin = j;
+					solidLength = (h-delta)-s;
+                } else {
+                    powderLength += h-delta;
+                }
+
+
+			} else {
+				//anti-peak
+				double delta = 0.5 * (phiNL[j] - phiNL[j-1] + h);
+				assert(delta >= 0); assert(delta <= h);
+				solidLength = 0.0;
+                assert(phiNL[j] - delta <= lc);
+                assert(phiNL[j] >= lc || phiNL[j+1] >= lc);
+                //check for & deal with intersection on first slope
+                double s  = phiNL[j] - lc;
+                assert(s <= delta);
+                if (s > 0) {
+                    powderLength += s;
+					begin = -1;
+                    solidLength = (delta - s);
+                } else {
+                    fragLength.back() += delta;
+                }
+                
+                //check for & deal with intersection on second slope
+                s  = lc - phiNL[j] + delta;
+                assert(s >= 0);
+                if (s < (h-delta)) {
+					solidLength += s;
+					fragLength.push_back(solidLength);
+					solidLength = 0.0;
+					powderLength += (h-delta) - s;
+					begin = -1;
+                } else {
+                    solidLength += (h-delta);
+					begin = j;
+                }
+			}//end peak/antipeak
+		} //end hat
+		
+		if (firstbegin == -1) firstbegin = j;
+		if (begin == -1) {
+			begin = j;
+			fragLength.push_back(0.0);
+		}
+		assert(solidLength <= h); assert(solidLength >= 0.0);
+		fragLength.back() += solidLength;
+	
     }
 
-    double sumfrag = 0.0;
-	for (unsigned j = 0; j < fragindex.size(); ++j) {
-	    double length = static_cast<double>(fragindex[j].size()) * h;
+	//copy for negative side
+    unsigned numFL = fragLength.size();
+	//double length of first fragment if it was intact (firstbegin)
+    if (firstbegin == 0 && numFL > 0) fragLength[0] *= 2.0;
+	else fragLength.push_back(fragLength[0]);
+    for (unsigned j = 1; j < numFL; ++j) fragLength.push_back(fragLength[j]);
+	powderLength *= 2;
 
-        bool flag = true;  //need to duplicate
-		if (length > 0) {
-			if (fragindex[j][0] == 0) flag = false;  //no need if d[0] < 0
-		}
-        if (flag) {
-			fragLength.push_back(length);	
-			fragLength.push_back(length);	
-		} else {
-			fragLength.push_back(length*2.0);	
-		}
-		sumfrag += length * 2.0;
-	}
+	assert( (fragLength.size() == numFL*2 && firstbegin != 0) || (fragLength.size() == numFL*2-1 && firstbegin == 0) );
 
 	//length check
-	double powderLength = static_cast<double>(powderindex.size()) * h * 2.0;
+    double sumfrag = 0.0;
+	for (unsigned j = 0; j < fragLength.size(); ++j) 	sumfrag += fragLength[j];
+cout << "   sumfrag = " << sumfrag << "      powderfrag = " << powderLength << "    = " << sumfrag+powderLength << endl;
     assert(fabs(sumfrag + powderLength - L * 2.0) < h * 0.5);
 
 	return fragLength;
 };
 
-void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, const std::string elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue, std::vector<Segment*>& newSegment){
+unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<double>& criterion, const std::string elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue, std::vector<Segment*>& newSegment, vector<unsigned>& nbiter, const vector<double>& pg, const vector<double>& wg){
 
     //x              -mesh
     //phi            -level-set calculated at this time-step
@@ -1044,6 +1283,7 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
     //phiPos         -whether(1) or not(0) failure cannot occur depending on if phi>0
     //failvalue      -what to call phi at localization zone if created - e.g. h
     //failure if qty > criterion
+	//return: xlist - number of nucleations performed
 
     vector<double> margin;
     vector<unsigned> index;
@@ -1140,8 +1380,9 @@ void PotentialAvenger::checkFailureCriteria(const double t, const std::vector<do
     //nucleate list
     if (xlist.size() > 0) {
         vector<double> failvalueList = vector<double>(xlist.size(),failvalue);
-        nucleate(t,x,phi,xlist,failvalueList, newSegment, elemOrNodal);
+        nucleate(t[ts],xlist,failvalueList, newSegment, elemOrNodal);
     }
+	return xlist.size();
 };
 
 void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& phiV, const double h, vector<Segment*>& newSegment) {
@@ -1237,7 +1478,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         else newSegment[i]->slope = 0;
     }
     while (delList.size() > 0) {
-        unsigned index = delList[delList.size()-1]; 
+        unsigned index = delList.back(); 
         newSegment.erase(newSegment.begin() + index);
         delList.pop_back();
     }
@@ -1252,7 +1493,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     assert(tot_indices + removeList.size() == x.size());
 
     //return phinew as phi
-    for (unsigned i = 0; i < phi.size(); ++i) {
+    for (unsigned i = 0; i < phiV.size(); ++i) {
         phiV[i] = phinew[i];
     }
 
@@ -1279,9 +1520,9 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 				//Segment seg = Segment();
 				//newSegment.push_back(seg);
 				newSegment.push_back(new Segment());
-				for (unsigned k = loca; k < newSegment[j]->indices.size(); ++k) newSegment[newSegment.size()-1]->indices.push_back(newSegment[j]->indices[k]);
-				newSegment[newSegment.size()-1]->setPeak(x,phinew);
-				newSegment[newSegment.size()-1]->slope = newSegment[j]->slope;
+				for (unsigned k = loca; k < newSegment[j]->indices.size(); ++k) newSegment.back()->indices.push_back(newSegment[j]->indices[k]);
+				newSegment.back()->setPeak(x,phinew);
+				newSegment.back()->slope = newSegment[j]->slope;
 				newSegment[j]->indices.resize(loca);
             }
             assert(newSegment[j]->end() == newSegment[j]->begin() + newSegment[j]->indices.size() - 1);
@@ -1550,9 +1791,9 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
     }
     fprintf ( pFile, "\n" );
 
-    fprintf ( pFile, "\nSCALARS phi float\n" );
+    fprintf ( pFile, "\nSCALARS phiNL float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %12.3e \n", printable(phi[i]));
+    for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %12.3e \n", printable(phiNL[i]));
     fprintf ( pFile, "\n" );
     
     fprintf ( pFile, "\nSCALARS inTLSnode int\n" );
@@ -1560,9 +1801,14 @@ void PotentialAvenger::printPointData ( const std::string& vtkFile ) const {
     for ( unsigned i = 0; i < v.size(); i++ ) fprintf ( pFile, " %u \n", inTLSnode[i]);
     fprintf ( pFile, "\n" );
     
-    fprintf ( pFile, "\nSCALARS absGradPhi float\n" );
+    fprintf ( pFile, "\nSCALARS absGradPhiL float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nnod; i++ ) fprintf ( pFile, " %12.3e \n", printable(fabs(gradPhi[i])));
+    for ( unsigned i = 0; i < Nnod; i++ ) fprintf ( pFile, " %12.3e \n", printable(fabs(gradPhiL[i])));
+    fprintf ( pFile, "\n" );
+    
+    fprintf ( pFile, "\nSCALARS absGradPhiNL float\n" );
+    fprintf( pFile, "LOOKUP_TABLE default\n" );
+    for ( unsigned i = 0; i < Nnod; i++ ) fprintf ( pFile, " %12.3e \n", printable(fabs(gradPhiNL[i])));
     fprintf ( pFile, "\n" );
     
     fclose( pFile );
@@ -1573,6 +1819,12 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile, const unsigne
     FILE * pFile;
     pFile = fopen( vtkFile.c_str(), "a" );
     fprintf( pFile, "CELL_DATA %d", Ncell );
+
+    fprintf ( pFile, "\nSCALARS phiL float\n" );
+    fprintf( pFile, "LOOKUP_TABLE default\n" );
+    for ( unsigned i = 0; i < Nelt; i++ ) fprintf ( pFile, " %12.3e \n", printable(phiL[i]));
+    fprintf ( pFile, "\n" );
+    
     fprintf( pFile, "\nSCALARS stress float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
     for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", printable(s[i]));
@@ -1672,7 +1924,7 @@ void PotentialAvenger::printSTheta () {
         fprintf( pFile, "%12.3e", s[i] );
         fprintf( pFile, "%12.3f", cohTheta );
 //        fprintf( pFile, "%12.3e", _sigCoh[i] );
-        fprintf( pFile, "%12.3e", dm.dval(phi[i]) );
+        fprintf( pFile, "%12.3e", d[i] );
         fprintf( pFile, "%12.3f", (double)(i) );
         fprintf( pFile, "%12.3f", (double)(_Nt) );
 	    fprintf( pFile, "\n" );

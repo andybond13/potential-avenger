@@ -44,43 +44,50 @@ double E, A, rho, c, L, h, dt, Yc, sigc, ec;
 unsigned _numFrag, _Nt, _DtPrint;
 double strain_energy, dissip_energy, dissip_energy_TLS, dissip_energy_local, kinetic_energy, max_energy, ext_energy, tot_energy;
 double _fMean, _fMed, _fMax, _fMin, _fStDev, _fRange, _fSkew, _fExKurtosis;
-std::vector<double> x, t, xe, d, u, v, a, s, e, phi, Y, Ycv, YmYc, energy, m, d_1, u_1, Ystat, ustat, phi_1, phi_2, phi_3, phi_4, phi_5, phi_6;
+std::vector<double> x, t, xe, d, u, v, a, s, e, phiL, phiNL, Y, Ycv, YmYc, energy, m, d_1, u_1, Ystat, ustat, phiNL_1;
 std::vector<unsigned> nfrags;	
 std::vector<unsigned> d_type;	
 DamageModel dm;
 std::vector<unsigned> inTLS;
 std::vector<unsigned> inTLSnode;
 std::vector<double> d_max,d_max_alt;
-std::vector<double> gradPhi;
+std::vector<double> gradPhiL;
+std::vector<double> gradPhiNL;
 unsigned nucleated;
 std::vector<std::vector<double> > d_quad,d_quad_wt;
 
 void printRunInfo();
 
 void calculateEnergies(const unsigned& i, const std::vector<double>& pg, const std::vector<double>& wg);
-void calculateStresses(const std::vector<double>& pg, const std::vector<double>& wg, std::vector<Segment*>& newSegment);
+void calculateStressesL(const std::vector<double>& pg, const std::vector<double>& wg);
+void calculateStressesNL(const std::vector<double>& pg, const std::vector<double>& wg, std::vector<Segment*>& newSegment);
 
 //nucleate.m
-void nucleate(double t, const std::vector<double>& x, std::vector<double>& phi, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal);
+void nucleate(double t, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal);
 
 //findFragments.m
-std::vector<double> findFragments(DamageModel& dm, std::vector<Segment*>& newSegment, const std::vector<double>& phi, unsigned& nfrags, std::vector<Fragment*>& fragmentList);
-std::vector<double> fragmentLength(std::vector<Fragment*>& fragmentList);
+std::vector<double> findFragments(DamageModel& dm, const std::vector<double>& phiLocal, const std::vector<double>& phiNonLocal, unsigned& nfrags, const std::vector<Segment*>& segments);
+std::vector<double> fragmentLength(const std::vector<Segment*>& segments);
 
 //checkFailureCriteria.m
-void checkFailureCriteria(double t, const std::vector<double>& x, std::vector<double>& phi, std::vector<double>& criterion, std::string elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue, std::vector<Segment*>& newSegment);
+unsigned checkFailureCriteria(unsigned ts, std::vector<double>& criterion, std::string elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue, std::vector<Segment*>& newSegment, std::vector<unsigned>& nbiter, const std::vector<double>& pg, const std::vector<double>& wg);
 
 //analyzeDamage.m
 void analyzeDamage(const std::vector<double>& x, std::vector<double>& phi, const double h, std::vector<Segment*>& newSegment);
 
 //calculate level-set gradient
-void calculateLevelSetGradient(const std::vector<double>& d, std::vector<double>& gradPhi);
+void calculateLevelSetGradientL(const std::vector<double>& d, std::vector<double>& gradPhi);
+void calculateLevelSetGradientNL(const std::vector<double>& d, std::vector<double>& gradPhi);
 
 //get list of which elements are in a TLS zone
 void checkInTLS(const std::vector<Segment*>& segments, std::vector<unsigned>& elem, std::vector<unsigned>& node);
 
+//check enforcement of constraints (Ycbar < Yc), (|gradPhi|<=1)
+void checkConstraints(const std::vector<double>& gradientPhiL, const std::vector<double>& gradientPhiNL, const std::vector<Segment*>& segments);
+
 //update level set for nodes in TLS
-void updateLevelSet(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
+void updateLevelSetL(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
+void updateLevelSetNL(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
 
 double H(const unsigned, const double);
 double dH(const unsigned, const double) const;

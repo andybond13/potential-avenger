@@ -32,6 +32,7 @@ class Segment{
     double phipeak; //phimax
     double phimin;
     double slope;
+    double YbarmYc;
     void setPeak(const std::vector<double>& x, const std::vector<double>& phi);
 
     private:
