@@ -53,8 +53,10 @@ std::vector<unsigned> inTLSnode;
 std::vector<double> d_max,d_max_alt;
 std::vector<double> gradPhiL;
 std::vector<double> gradPhiNL;
+std::vector<double> gradPhiNLelem;
 unsigned nucleated;
 std::vector<std::vector<double> > d_quad,d_quad_wt;
+double EPS;
 
 void printRunInfo();
 
@@ -91,6 +93,7 @@ void updateLevelSetNL(const unsigned& i, std::vector<unsigned>& nbiter, std::vec
 
 double H(const unsigned, const double);
 double dH(const unsigned, const double) const;
+double d2H(const unsigned, const double) const;
 
 //calculate Ybar
 unsigned calculateYbar(const std::vector<double>& pg, const std::vector<double>& wg, double& Ycavg, double& YbarmYc, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment);
