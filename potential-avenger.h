@@ -44,7 +44,7 @@ double E, A, rho, c, L, h, dt, Yc, sigc, ec;
 unsigned _numFrag, _Nt, _DtPrint;
 double strain_energy, dissip_energy, dissip_energy_TLS, dissip_energy_local, kinetic_energy, max_energy, ext_energy, tot_energy;
 double _fMean, _fMed, _fMax, _fMin, _fStDev, _fRange, _fSkew, _fExKurtosis;
-std::vector<double> x, t, xe, d, u, v, a, s, e, phiL, phiNL, Y, Ycv, energy, m, d_1, u_1, Ystat, ustat, phiNL_1;
+std::vector<double> x, t, xe, d, u, v, a, s, e, phiL, phiNL, Y, Ycv, energy, m, d_1, u_1, Ystat, ustat, phiNL_1, Ybar;
 std::vector<unsigned> nfrags;	
 std::vector<unsigned> d_type;	
 DamageModel dm;

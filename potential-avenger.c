@@ -177,6 +177,7 @@ void PotentialAvenger::run() {
     s = vector<double>(Nelt,0.0);
     energy = vector<double>(Nelt,0);
     Y = vector<double>(Nelt,0);
+    Ybar = vector<double>(Nelt,0);
     Ycv = vector<double>(Nelt,Yc);
     strain_energy = 0.0;
     kinetic_energy = 0.0;
@@ -199,6 +200,7 @@ void PotentialAvenger::run() {
     vector<double> phidot;
     gradPhiL = vector<double>(Nnod,0.0);
     gradPhiNL = vector<double>(Nnod,0.0);
+    gradPhiNLelem = vector<double>(Nelt,0.0);
 
     vector<unsigned> nbiter = vector<unsigned>(Ntim,0);
     nfrags = vector<unsigned>(Ntim,0);
@@ -282,6 +284,8 @@ nucleated = 1;
     for (unsigned i = 1; i < Ntim; ++i){
         _Nt++;
 //cout << "t = " << t[i] << endl;
+
+		Ybar.assign(Nelt,0.0);
 
         //Copy kinematic variables to "old"
         u_1 = vector<double>(Nnod,0); u_1 = u; u.assign(Nnod,0.0);
@@ -758,6 +762,8 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
             Y[j] -= d_quad_wt[j][k] * dH(j,dloc);
         }
 
+		if (Ybar[j] == 0.0) Ybar[j] = Y[j]/Yc;
+
         if (inTLS[j] == 1) dissip_energy_TLS += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
         if (inTLS[j] == 0) dissip_energy_local += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
         if (i > 0) {
@@ -1024,9 +1030,34 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 
                     
     YbarmYc = residu_Y/(dm.dval(phimax)-dm.dval(phimin));
+//cout << "Ybar:   residuY = " << residu_Y << "   tangentY = " << tangent_Y << endl;
+//    cout << "segment " <<  " begin = " << sbegin << "  end = " << send << "  |  YbarmYc = " << YbarmYc << "    Yc = " << Yc << "  -> ratio= " << YbarmYc/Yc << endl;
+//cout << "   residuY = " << residu_Y << "   dmax = " << dm.dval(phimax) << "   dmin = " << dm.dval(phimin) << endl;
+/*    if (YbarmYc/Yc > 0.001) {
+    //cout << " YbarmYc = " << YbarmYc << "    Yc = " << Yc << "  -> ratio= " << YbarmYc/Yc << endl;
+    cout << "residuY = " << residu_Y << endl;
+    cout << " phimax = " << phimax << "   ( " << dm.dval(phimax) << endl;
+    cout << " phimin = " << phimin << "   ( " << dm.dval(phimin) << endl;
+    cout << " diff-d = " << dm.dval(phimax)-dm.dval(phimin) << endl;
+    }				
+*/
     segment->YbarmYc = YbarmYc;
+if (segLength <= 0.0) {
+//	cout << " begin-end = " << segment->begin() << "  - " << segment->end() << endl;
+//    cout << "   YbarmYc = " << YbarmYc << "   saved as " << segment->YbarmYc << endl;
+    cout << endl;
+    cout << " residuY = " << residu_Y << "    Yc = " << Yc << endl;
+    cout << " YbarmYc = " << YbarmYc << endl;
+//    cout << " segLength = " << segLength << endl;
+}
 	assert(segLength > 0.0);
 	Ycavg /= segLength;
+
+    for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send+1,Nelt-1); ++j) {
+        if (j < 0) continue;
+        if (inTLSnode[j]+inTLSnode[j+1] == 0) continue;
+		Ybar[j] = YbarmYc/Ycavg+1.0;
+	}
 
 	return 1;
 }
@@ -1890,6 +1921,11 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile, const unsigne
     fprintf( pFile, "\nSCALARS Y/Yc float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
     for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", printable(Y[i]/Yc));
+    fprintf( pFile, "\n" );
+
+    fprintf( pFile, "\nSCALARS Ybar/Yc float\n" );
+    fprintf( pFile, "LOOKUP_TABLE default\n" );
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf( pFile, " %12.3e \n", printable(Ybar[i]));
     fprintf( pFile, "\n" );
 
     fprintf ( pFile, "\nSCALARS damage float\n" );
