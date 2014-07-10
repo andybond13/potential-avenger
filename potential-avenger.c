@@ -907,6 +907,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
                 //enforcing limit of level-set motion
                 //phi[j] = min(phi_1[j]+h,phi[j]);
             }
+			checkInTLS(segments,inTLS,inTLSnode);
         } //while
 		assert(YbarmYc/Yc <= 1.e-6);
             for (unsigned j = sbegin; j <=send; ++j) {
