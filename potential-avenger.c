@@ -242,7 +242,7 @@ void PotentialAvenger::run() {
         u[j] = x[j] * e0;//x[j] * ec * L * 0.999*(1-vbc);
         ustat[j] = 0.0;//x[j] * ec * L * 0.999*(1-vbc);
         if (j < Nnod-1) phiL[j] = 0.0;//(2*h-x[j])*(1-vbc)-vbc;
-        phiNL[j] = h-x[j];
+        phiNL[j] = 2.0*h-x[j];
     }
     Segment* seg1 = new Segment(x[0],phiNL[0],-1);
     seg1->indices.push_back(-1);
@@ -879,14 +879,14 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			if (YbarmYc < 0 && nbiter[i] == 1) goto next;
 
             int flag = 1; //0 is exterior (damage centered on edge of domain); 1 is interior
-            if (l == 1 && segments[l]->begin() == 0) flag = 0;
-            if (l == segments.size()-1 && segments[l]->end() == Nnod-1) flag = 0;
+            if (segments[l]->begin() == 0 || segments[l]->end() == Nnod-1) flag = 0;
 
             residu = YbarmYc;
             err_crit = fabs(residu)/Ycavg;
 
+            double tangent = tangent_Y/dm.dval(phimax)  - residu * dm.dp(phimax)/dm.dval(phimax);
 //            double tangent = (tangent_Y + 0*(phiminY-Ycavg)*dm.dp(phimin) )/( dm.dval(phimax)-0*dm.dval(phimin) ) - residu * dm.dp(phimax)/dm.dval(phimax);
-            double tangent = (tangent_Y + (phiminY-Ycavg)*dm.dp(phimin) )/( dm.dval(phimax)-dm.dval(phimin)) - dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),1) * residu;
+//            double tangent = (tangent_Y + (phiminY-Ycavg)*dm.dp(phimin) )/( dm.dval(phimax)-dm.dval(phimin)) - dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),1) * residu;
             if (flag) tangent = (tangent_Y + 0.5*(phiminY-Ycavg)*dm.dp(phimin) - 0.5*(phimaxY-Ycavg)*dm.dp(phimax) )/( Ycavg*(dm.dval(phimax)-dm.dval(phimin)) ) - (dm.dp(phimax) - dm.dp(phimin) )/pow(dm.dval(phimax)-dm.dval(phimin),1) * (YbarmYc/Ycavg);
                 //double tangent = (tangent_Y + static_cast<double>(flag)*(phimaxY-Yc[iphimax])*dm.dp(phimax)/2.0)/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - ((1.0+static_cast<double>(flag)/2.0)*dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2)) * (YbarmYc/Yc);
 //cout << "dphi = " << dphi;
@@ -1336,7 +1336,6 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 	//length check
     double sumfrag = 0.0;
 	for (unsigned j = 0; j < fragLength.size(); ++j) 	sumfrag += fragLength[j];
-cout << "   sumfrag = " << sumfrag << "      powderfrag = " << powderLength << "    = " << sumfrag+powderLength << "   diff = " << sumfrag+powderLength-2.0*L << endl;
 	assert(fabs(sumfrag + powderLength - L * 2.0) < EPS*Nelt );
 
 	return fragLength;
@@ -1375,9 +1374,9 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
     for (unsigned i = 0; i < qty.size(); ++i) {
         if (phiPos == 0) {//can't fail if phi>0
             if (elemOrNodal.compare("nodal") == 0) {
-                if (phi[i] > 0) continue;
+                if (phiNL[i] > 0) continue;
             } else {
-                if (phi[i]>0 || phi[i+1]>0) continue;
+                if (phiNL[i]>0 || phiNL[i+1]>0) continue;
             }
         }
         double qtyc = qty[i];
