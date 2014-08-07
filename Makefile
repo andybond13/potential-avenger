@@ -1,13 +1,13 @@
 #makefile
-COMPILER = g++
-COMPILER_FLAGS = -g -O3 -Wall
+COMPILER = g++-4
+COMPILER_FLAGS = -g -Wall
 LIB = 
 SOURCES = $(wildcard *.c) 
 INC = -I .
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = potential-avenger.exe
 
-all: $(SOURCES) $(EXECUTABLE)
+all: $(SOURCES) $(EXECUTABLE) dSYM
 	
 $(EXECUTABLE): $(OBJECTS) 
 	$(COMPILER) $(LIB) $(OBJECTS) -o $@
@@ -15,5 +15,8 @@ $(EXECUTABLE): $(OBJECTS)
 .c.o:
 	$(COMPILER) $(COMPILER_FLAGS) $(INC) -c $< -o $@
 
+dSYM:
+	dsymutil potential-avenger.exe -o potential-avenger.exe.dSYM
+
 clean:
-	rm *.o *.exe
+	rm *.o *.exe; rm -rf *dSYM

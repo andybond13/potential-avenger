@@ -154,7 +154,7 @@ void PotentialAvenger::run() {
     h = 1/static_cast<double>(Nelt); //
     double cfl = 1./ts_refine;
     dt = cfl * h/c;//
-    unsigned Ntim = Nelt*ts_refine*end_t*c;
+    unsigned Ntim = static_cast<unsigned>(Nelt*ts_refine*end_t*c)+1;
     Yc = 8.1967e-4;//E/10;
     ec = sqrt(2 * Yc / E);
     sigc = E * ec;
@@ -955,7 +955,8 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
                     philoc = pg[k]*phiNL[j] + (1-pg[k]) * phiNL[j+1];
                 }
                 residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
-                tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc) - wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
+                tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
+			    			 - h * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
             }
             loop_residu++;
 			segLength += 1.0;
@@ -966,7 +967,8 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
             for (unsigned k = 0; k < pg.size(); ++k) {
                 double philoc = pg[k] * phiNL[j];
                residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
-                tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)  - delta * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
+                tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
+							 -delta * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
             }
             loop_residu++;
 			segLength += delta/h;
@@ -981,7 +983,8 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
             for (unsigned k = 0; k < pg.size(); ++k) {
                 double philoc = pg[k] * phiNL[j+1];
                 residu_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
-                tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)  - delta * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
+                tangent_Y += delta * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
+						   - delta * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
            }
            loop_residu++;
 			segLength += delta/h;
