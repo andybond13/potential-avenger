@@ -197,7 +197,7 @@ void PotentialAvenger::run() {
     phiNL = vector<double>(Nnod,0);
 
     phiNL_1 = vector<double>(Nnod,0);
-    vector<double> phidot;
+    phidot = vector<vector<double> >(Ntim);
     gradPhiL = vector<double>(Nnod,0.0);
     gradPhiNL = vector<double>(Nnod,0.0);
     gradPhiNLelem = vector<double>(Nelt,0.0);
@@ -271,7 +271,7 @@ nucleated = 1;
         if (segments[l]->size() == 0) continue;
         len++;
     }
-    phidot.resize(len);
+    phidot[0].resize(len);
 
     //print data to file
     vector<double>fragLength = findFragments(dm, phiL, phiNL,nfrags[0],segments);
@@ -365,10 +365,10 @@ nucleated = 1;
                 if (segments[j]->size() == 0) continue;
                 len++;
             }
-            phidot.resize(len);
-            phidot[index] = (phiNL[smid] - phiNL_1[smid])/dt;
-            if (phidot[index] * dt > h*1.01 ) {
-                printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t[i],l,phidot[index]*dt/h);
+            phidot.at(i).resize(len);
+            phidot.at(i).at(index) = (phiNL[smid] - phiNL_1[smid])/dt;
+            if (phidot[i][index] * dt > h*1.01 ) {
+                printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t[i],l,phidot[i][index]*dt/h);
             }
         }
 
@@ -1239,8 +1239,7 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 		}
 
 		//element partially failing (hat)
-		if ( (fabs(phiNL[j]-phiNL[j+1]) < h) && (phiNL[j] >= lc-h && phiNL[j+1] >= lc-h) ) {
-
+		if ( fabs(fabs(phiNL[j]-phiNL[j+1]) - h) > EPS && (phiNL[j] >= lc-h && phiNL[j+1] >= lc-h) ) {
 			bool hasPeak = false;
 			//check for peaks -> hasPeak (false = antipeak, true = peak)
 			for (unsigned l = 0; l < segments.size(); ++l) {
@@ -1280,6 +1279,7 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 			} else {
 				//anti-peak
 				double delta = 0.5 * (phiNL[j] - phiNL[j-1] + h);
+				if (fabs(delta) < EPS) delta = 0.0;
 				assert(delta >= 0); assert(delta <= h);
 				solidLength = 0.0;
                 if (phiNL[j] - delta <= lc) {
@@ -1655,6 +1655,11 @@ void PotentialAvenger::plotEnergies () {
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:5 ti 'Wkin' w l ,\\\n");
     fprintf( pFileW, "     './datFiles/energies.dat' usi 1:(abs($2+$3+$5)) ti 'Wsum' w l\n\n");
 
+	
+    fprintf( pFileW, "set output './pngFiles/phidotC.svg'\n");
+    fprintf( pFileW, "set ylabel \"damage front speed phidot/c\"\n" );
+    fprintf( pFileW, "plot for [i=10:100] './datFiles/energies.dat' usi 1:i title \"Segment \".(i-9) w l \n");
+
     fclose( pFileW );
 
     // Prepare Gnuplot data file
@@ -1665,7 +1670,9 @@ void PotentialAvenger::plotEnergies () {
     fprintf( pFile, " -- MH [DCML] (2010)\n" );
     fprintf( pFile, "# Total energies for the system\n" );
     fprintf( pFile, "#       time        Wspr        Wdis        Wext");
-    fprintf( pFile, "        Wkin   0.01*Wmax        Wsum\n" );
+    fprintf( pFile, "        Wkin   0.01*Wmax        Wsum     WdisLoc     WdisTLS" );
+    for (unsigned i = 1; i <= 100; ++i) fprintf( pFile, "   Segment %u", i); 
+    fprintf( pFile, "\n");
     fclose( pFile );
 }
 
@@ -1964,6 +1971,7 @@ void PotentialAvenger::printGlobalInfo () const {
 	fprintf( pFile, "%12.3e", tot_energy );
 	fprintf( pFile, "%12.3e", dissip_energy_local );
 	fprintf( pFile, "%12.3e", dissip_energy_TLS );
+	for (unsigned i = 0; i < phidot[_Nt].size(); ++i) fprintf( pFile, "%12.3e", phidot[_Nt].at(i)/sqrt(E/rho)  );
         fprintf( pFile, "\n" );
 	fclose( pFile );
     }
