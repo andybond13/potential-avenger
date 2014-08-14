@@ -472,9 +472,7 @@ void PotentialAvenger::calculateLevelSetGradientL( const vector<double>& dV, vec
 		gradientPhi[i] = (phiM - phiM1) / h;
 	}
     gradientPhi[0] = gradientPhi[1]; 
-    gradientPhi[Nnod-1] = gradientPhi[Nnod-2];
-
-	for (unsigned i = 0; i < Nnod; ++i) if (inTLS[i]) gradientPhi[i] = 0.0; 
+	for (unsigned i = 0; i < Nelt; ++i) if (inTLS[i]) gradientPhi[i] = 0.0; 
     return;
 }
 
@@ -730,7 +728,7 @@ void PotentialAvenger::calculateStressesL(const vector<double>& pg, const vector
 		d[j] = dee;
         s[j] = E * (1.0 - dee) * e[j];
 		assert(d[j] >= d_1[j]);
-		if (d[j] < 1.0) assert(0.5 * E * e[j] * e[j] - dH(j,d[j]) <= Ycv[j]);
+		if (d[j] < 1.0) assert(0.5 * E * e[j] * e[j] - dH(j,d[j]) <= Ycv[j] * (1 + EPS));
 		
         if (fullCompression) {
             //this makes compression fully in contact no matter what the damage
@@ -863,8 +861,10 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 
         if (segments[l]->phipeak <= 0) continue;
 
-        double YbarmYc = 1.0;           
-        while (err_crit > 1.e-6 && nbiter[i] < 50) {
+        double YbarmYc = 1.0;    
+		vector<double> residuV, tangentV, phimaxV;
+		unsigned iter_max = 50; 
+        while (err_crit > 1.e-6 && nbiter[i] < iter_max) {
             nbiter[i]++;
 
 			double tangent_Y = 0.0;
@@ -881,11 +881,12 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
             int flag = 1; //0 is exterior (damage centered on edge of domain); 1 is interior
             if (segments[l]->begin() == 0 || segments[l]->end() == Nnod-1) flag = 0;
 
+            if (l == 1 && segments[l]->begin() == 0) flag = 0;
+            if (l == segments.size()-1 && segments[l]->end() == Nnod-1) flag = 0;
             residu = YbarmYc;
             err_crit = fabs(residu)/Ycavg;
 
             double tangent = tangent_Y/dm.dval(phimax)  - residu * dm.dp(phimax)/dm.dval(phimax);
-//            double tangent = (tangent_Y + 0*(phiminY-Ycavg)*dm.dp(phimin) )/( dm.dval(phimax)-0*dm.dval(phimin) ) - residu * dm.dp(phimax)/dm.dval(phimax);
 //            double tangent = (tangent_Y + (phiminY-Ycavg)*dm.dp(phimin) )/( dm.dval(phimax)-dm.dval(phimin)) - dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),1) * residu;
             if (flag) tangent = (tangent_Y + 0.5*(phiminY-Ycavg)*dm.dp(phimin) - 0.5*(phimaxY-Ycavg)*dm.dp(phimax) )/( Ycavg*(dm.dval(phimax)-dm.dval(phimin)) ) - (dm.dp(phimax) - dm.dp(phimin) )/pow(dm.dval(phimax)-dm.dval(phimin),1) * (YbarmYc/Ycavg);
                 //double tangent = (tangent_Y + static_cast<double>(flag)*(phimaxY-Yc[iphimax])*dm.dp(phimax)/2.0)/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - ((1.0+static_cast<double>(flag)/2.0)*dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2)) * (YbarmYc/Yc);
@@ -907,19 +908,74 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
                 //enforcing limit of level-set motion
                 //phi[j] = min(phi_1[j]+h,phi[j]);
             }
+			segments[l]->phipeak += dphi;
 			checkInTLS(segments,inTLS,inTLSnode);
-        } //while
-		assert(YbarmYc/Yc <= 1.e-6);
+        	//setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
+        } //endwhile
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
             }
         next:
         err_crit = 0.0;
-        segments[l]->setPeak(x,phiNL); //segments[l].phipeak += dphi; 
+        //setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
 
     } //for segments
 
+	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
+
     return;
+}
+
+void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& phiIn, vector<Segment*>& segments, const unsigned index) {
+	unsigned sbegin = segments[index]->begin();
+	unsigned send = segments[index]->end();	
+	double slope = static_cast<double>(segments[index]->slope);
+	
+	//find neighboring segment
+	unsigned other = index;
+	unsigned dist = Nelt;
+	double otherSlope = 0.0;
+	if (slope == 1) {
+		for (unsigned i = 0; i < segments.size(); ++i) {
+			if (segments[i]->begin() - send < dist && segments[i]->begin() - send > 0 && segments[i]->slope < 1) {
+				dist = segments[i]->begin() - send;
+				other = i;
+				otherSlope = static_cast<double>(segments[i]->slope);
+			}
+		}
+		assert(other != index);
+		assert(otherSlope != slope);
+	} else {
+        for (unsigned i = 0; i < segments.size(); ++i) {
+            if (sbegin - segments[i]->end() < dist && sbegin - segments[i]->end() > 0 && segments[i]->slope > -1) {
+                dist = sbegin - segments[i]->end();
+                other = i;
+				otherSlope = static_cast<double>(segments[i]->slope);
+            }
+        }
+        assert(other != index);
+        assert(otherSlope != slope);
+	}
+
+	//get slopes & intercepts: phi = a*x + b
+	double a1 = slope;
+	double a2 = otherSlope;
+	double b1 = phiIn[sbegin] - slope * x[sbegin]; 
+	double b2 = phiIn[segments[other]->begin()] - segments[other]->slope * x[segments[other]->begin()];;
+	assert(a1 - a2 != 0.0);	
+
+	//intersect
+	double xint = (b2 - b1) / (a1 - a2);
+	double phiint = (a1*b2 - b1*a2) / (a1 - a2);
+	cout << " *** set intersection of segment " << index << " to segment " << other << "  to phipeak = " << phiint << " @ " << xint << endl;
+
+	//save peaks
+	segments[index]->xpeak = xint;	
+	segments[index]->phipeak = phiint;	
+	segments[other]->xpeak = xint;	
+	segments[other]->phipeak = phiint;	
+
+	return;
 }
 
 unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<double>& wg, double& Ycavg, double& YbarmYc, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment) {
@@ -943,20 +999,40 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
         if (phiNL[j] > 0 && phiNL[j+1] > 0) {
             for (unsigned k = 0; k < pg.size(); ++k) {
                 double philoc = 0;
-                if (segment->slope == 1 && x[j+1] > segment->xpeak && x[j] < segment->xpeak) {//if peak is within element, only integrate the side with the proper slope
-                    double delta = segment->xpeak - x[j];
-                    assert(delta > 0); assert( delta < h);
-                    philoc = pg[k]*(phiNL[j] + delta) + (1-pg[k]) * phiNL[j+1];              //shift quadrature to interval of interest
-                } else if (segment->slope == -1 && x[j+1] > segment->xpeak && x[j] < segment->xpeak) { //if peak is within element, only integrate the side with the proper slope
-                    double delta = segment->xpeak - x[j];
-                    assert(delta > 0); assert( delta < h);
-                    philoc = pg[k]*phiNL[j] + (1-pg[k]) * (phiNL[j] + delta);               //shift quadrature to interval of interest
+				double weight = 1.0;
+
+				double xpeak = segment->xpeak;
+				if (fabs(xpeak-x[j]) < EPS) xpeak = x[j];
+				if (fabs(xpeak-x[j+1]) < EPS) xpeak = x[j+1];
+
+                if (segment->slope == 1 && x[j+1] >= xpeak && x[j] <= xpeak) {
+					//if peak is within element, only integrate the side with the proper slope
+					//(left of peak: length = delta)
+                    double delta = xpeak - x[j];
+					if (fabs(h - delta) < EPS) delta = h;
+					if (fabs(delta) < EPS) delta = 0.0;
+                    assert(delta >= 0); assert( delta <= h);
+                    philoc = pg[k]*(phiNL[j] + delta) + (1-pg[k]) * phiNL[j];              //shift quadrature to interval of interest
+					weight *= delta;
+					//cout << " **case 1" << "  weight = " << weight << endl;
+                } else if (segment->slope == -1 && x[j+1] >= xpeak && x[j] <= xpeak) {
+					//if peak is within element, only integrate the side with the proper slope
+					//(right of peak: length = h-delta)
+                    double delta = xpeak - x[j];
+					if (fabs(h - delta) < EPS) delta = h;
+					if (fabs(delta) < EPS) delta = 0.0;
+                    assert(delta >= 0); assert( delta <= h);
+                    philoc = pg[k]*phiNL[j+1] + (1-pg[k]) * (phiNL[j] + delta);               //shift quadrature to interval of interest
+					weight *= h-delta;
+					//cout << " **case 2" << "  weight = " << weight << endl;
                 } else {
                     philoc = pg[k]*phiNL[j] + (1-pg[k]) * phiNL[j+1];
+					weight *= h;
+					//cout << " **case 3" << "  weight = " << weight << endl;
                 }
-                residu_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
-                tangent_Y += h * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
-			    			 - h * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
+                residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
+                tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
+			    			 - weight * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
             }
             loop_residu++;
 			segLength += 1.0;
@@ -1011,6 +1087,7 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
             iphimin = k;
         }
     }
+    phimax = max(phimax,segment->phipeak);// + dphi;//max(0.0,dphi);
     if (dm.dval(phimin) == 1 && nbiter == 1) return 0;
     if (phimin == phimax) return 0;
 
@@ -1105,6 +1182,7 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc,
             if (loc > 0) inTLSnode[loc-1] = 1;
             inTLSnode[loc+1] = 1;
         
+            if (loc < static_cast<int>(Nnod)-1) inTLSnode[loc+1] = 1;
             double gradient = 0;
             if (loc >= 1) {
                 if (d_1[loc] > d_1[loc-1]) gradient = 1.0; else gradient = -1.0;
@@ -1445,7 +1523,7 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
     
     if (elemOrNodal.compare("elem") == 0) {
 	    for (unsigned i = 0; i < xlist.size(); ++i) {
-    	    criterion[index[i]] *= (1-h*1.0*sqrt(1/0.2))*(1-h*1.0*sqrt(1/0.2));  //modify Yc at the location of nucleation by a factor alpha : TODO is this good???
+    	    criterion[index[i]] *= (1-alfa);  //modify Yc at the location of nucleation by a factor alpha : TODO is this good???
 	    }
     }
 
@@ -1473,6 +1551,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     vector<double> list_max;
     vector<double> value_max;
     vector<double> slope;
+    vector<double> YbarmYc;
     sort(newSegment.begin(), newSegment.end());
    
     assert(x.size() >= 1);
@@ -1484,6 +1563,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         list_max.push_back(newSegment[i]->xpeak);
         value_max.push_back(newSegment[i]->phipeak);
         slope.push_back(newSegment[i]->slope);
+        YbarmYc.push_back(newSegment[i]->YbarmYc);
         newSegment[i]->indices.clear();
     }
 
@@ -1493,6 +1573,10 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     newSegment.clear();
     newSegment.resize(nSegs*2);
 	for (unsigned i = 0; i < nSegs*2; ++i) newSegment[i] = new Segment(); 
+	for (unsigned i = 0; i < nSegs; ++i) {
+		newSegment[2*i]->YbarmYc = YbarmYc[i];
+		newSegment[2*i+1]->YbarmYc = YbarmYc[i];
+	}
     vector<unsigned> removeList;
 
     //re-define segments.indices and phi
@@ -1561,7 +1645,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
-        newSegment[i]->setPeak(x,phinew);
+        setPeak(x,phinew,newSegment,i);
         tot_indices += newSegment[i]->size();
         if (newSegment[i]->phipeak> 0 ) assert(newSegment[i]->indices.size() <= x.size());
     }
@@ -1597,7 +1681,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
 				//newSegment.push_back(seg);
 				newSegment.push_back(new Segment());
 				for (unsigned k = loca; k < newSegment[j]->indices.size(); ++k) newSegment.back()->indices.push_back(newSegment[j]->indices[k]);
-				newSegment.back()->setPeak(x,phinew);
+				setPeak(x,phinew,newSegment,newSegment.size()-1);
 				newSegment.back()->slope = newSegment[j]->slope;
 				newSegment[j]->indices.resize(loca);
             }
