@@ -63,6 +63,7 @@ void printRunInfo();
 void calculateEnergies(const unsigned& i, const std::vector<double>& pg, const std::vector<double>& wg);
 void calculateStressesL(const std::vector<double>& pg, const std::vector<double>& wg);
 void calculateStressesNL(const std::vector<double>& pg, const std::vector<double>& wg, std::vector<Segment*>& newSegment);
+void setPeak(const std::vector<double>& x, const std::vector<double>& phi, std::vector<Segment*>& segments, const unsigned index);
 
 //nucleate.m
 void nucleate(double t, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal);
