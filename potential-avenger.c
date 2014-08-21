@@ -214,7 +214,7 @@ void PotentialAvenger::run() {
     //initialization
 	double alfa = 1.0 - pow(1.0 - L * strain_rate * sqrt(rho/(2*Yc)),2); 
     Ycv[0] *= (1.0-alfa);
-	double qty = sqrt(2.0*Ycv[0]/E)  * static_cast<double>(startWithLoad);
+	double qty = sqrt(2.0*Yc*(1.0-alfa)/E)  * static_cast<double>(startWithLoad);
 	double e0 = qty; //max(qty - fmod(qty, (strain_rate * dt)), 0.0);
     e = vector<double>(Nelt,e0);
     x = vector<double>(Nnod,0);
@@ -879,7 +879,6 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			double Ycavg = 0.0; 
             unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l]);
 			if (status == 0) goto next;
-			if (YbarmYc < 0 && nbiter[i] == 1) cout << YbarmYc << "  skipped!" << endl;
 			if (YbarmYc < 0 && nbiter[i] == 1) goto next;
 			if (segments[l]->phimin >= lc) goto next;
 
@@ -910,7 +909,6 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] += dphi;//phiNL_before[j] + dphi;
-                //phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
                 //enforcing limit of level-set motion
                 //phi[j] = min(phi_1[j]+h,phi[j]);
             }
@@ -919,6 +917,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			checkInTLS(segments,inTLS,inTLSnode);
         	//setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
         } //endwhile
+		assert(nbiter[i] >= iter_max || YbarmYc/Yc <= 1.e-6);
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
             }
@@ -994,7 +993,6 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
 	//intersect
 	xint = (b2 - b1) / (a1 - a2);
 	phiint = (a1*b2 - b1*a2) / (a1 - a2);
-	cout << " *** set intersection of segment " << index << " to segment " << other << "  to phipeak = " << phiint << " @ " << xint << endl;
 
 	//save peaks
 	segments[index]->xpeak = xint;	
@@ -1058,7 +1056,6 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
 	//intersect
 	xint = (b2 - b1) / (a1 - a2);
 	phiint = (a1*b2 - b1*a2) / (a1 - a2);
-	cout << " *** set intersection of segment " << index << " to segment " << other << "  to phimin = " << phiint << " @ " << xint << endl;
 
 	//save peaks
 	segments[index]->xmin = xint;	
@@ -1081,7 +1078,7 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
     phimin = phiNL[sbegin];
     unsigned iphimin = sbegin;
 
-    for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send+1,Nelt-1); ++j) {
+    for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send,Nelt-1); ++j) {
         if (j < 0) continue;
 
 		if (inTLSnode[j]+inTLSnode[j+1] == 0) continue;
@@ -1195,7 +1192,6 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 	if (residu_Y == 0.0) YbarmYc = 0.0;
 //cout << "Ybar:   residuY = " << residu_Y << "   tangentY = " << tangent_Y << endl;
 //    cout << "segment " <<  " begin = " << sbegin << "  end = " << send << "  |  YbarmYc = " << YbarmYc << "    Yc = " << Yc << "  -> ratio= " << YbarmYc/Yc << endl;
-//cout << "   residuY = " << residu_Y << "   dmax = " << dm.dval(phimax) << "   dmin = " << dm.dval(phimin) << endl;
 /*    if (YbarmYc/Yc > 0.001) {
     //cout << " YbarmYc = " << YbarmYc << "    Yc = " << Yc << "  -> ratio= " << YbarmYc/Yc << endl;
     cout << "residuY = " << residu_Y << endl;
@@ -1211,7 +1207,6 @@ if (segLength <= 0.0) {
     cout << endl;
     cout << " residuY = " << residu_Y << "    Yc = " << Yc << endl;
     cout << " YbarmYc = " << YbarmYc << endl;
-//    cout << " segLength = " << segLength << endl;
 }
 	assert(segLength <= fabs(segment->xpeak - segment->xmin)/h );
 	assert(segLength > 0.0);
@@ -1284,15 +1279,19 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc,
 				if (loc+1 < static_cast<int>(Nelt)) phiNL[loc+1] = max(phicrit,phiL[loc+1]);
 				if (loc+1 < static_cast<int>(Nnod)) delta = 0.5 * (h + phiNL[loc+1] - phiNL[loc]);
 				else delta = 0.0;	
+			assert(delta >= 0.0); assert(delta <= h);
     	    } else {
                 assert(loc <= static_cast<int>(Nnod)-1);
-                double phicrit = max(max(phiL[loc-1],phiL[loc]),phiNL[loc]);
+                double phicrit = max(phiL[loc],phiNL[loc]);
+				if (loc > 0) phicrit = max(phicrit, phiL[loc-1]);
                 //phiNL[loc+1] = max(phicrit-h,phiNL[loc+1]); //max(max(phicrit-h,phiL[loc+1]),phiNL[loc+1]);
-                if (loc + 1 < static_cast<int>(Nnod) ) phiNL[loc+1] = max(max(phicrit-h,phiL[loc+1]),phiNL[loc+1]);
+                if (loc + 1 < static_cast<int>(Nnod) ) phiNL[loc+1] = max(phicrit-h,phiNL[loc+1]);
+                if (loc + 1 < static_cast<int>(Nelt) ) phiNL[loc+1] = max(phiL[loc+1],phiNL[loc+1]);
                 phiNL[loc] = phicrit;
                 if (loc-1 >= 0) phiNL[loc-1] = max(phicrit,phiL[loc-1]);
 				if (loc-1 >= 0) delta = 0.5 * (-h + phiNL[loc] - phiNL[loc-1]);
 				else delta = 0.0;
+			assert(delta <= 0.0); assert(delta >= -h);
         	}
              //create two new segments
              if (xnuc[j] > x[0]) {
