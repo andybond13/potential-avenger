@@ -9,7 +9,9 @@ os.system(command)
 ts_refine = 4
 end_t = 8.0e-5#2.5e-5*100
 Nelt = 250#20
-lc = 0.072
+Gc = 5.902e-5
+Yc = 8.1967e-4
+lc = 0.75 * Gc/Yc#0.072
 startWithLoad = 1 
 strain_rate = 0.25 #1 #100.0
 printVTK = 1
