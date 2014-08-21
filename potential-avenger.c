@@ -337,8 +337,6 @@ nucleated = 1;
             	numNuc = checkFailureCriteria(i,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments, nbiter, pg, wg);//delete this 0.5*h rather than 2*h
     		} else {
 		    	//local / non-local hybrid model
-		    	calculateLevelSetGradientL(d, gradPhiL);
-		    	calculateLevelSetGradientNL(d, gradPhiNL);
 		    	string elemOrNodal = "nodal";
 		    	vector<double> gradLimit(Nnod,1.0);
 		    	numNuc = checkFailureCriteria(i,gradLimit,elemOrNodal,gradPhiL,true,true, 1.0*h, segments, nbiter, pg, wg);
@@ -532,24 +530,30 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 	assert(gradientPhiL.size() == Nnod);
 	assert(gradientPhiNL.size() == Nnod);
    
-	if (localOnly == 0) for (unsigned j = 0; j < Nnod; ++j) assert(fabs(gradientPhiL[j]) < 1.0 + Nelt*EPS);
+	if (localOnly == 0 && minOpenDist == 0.0 && alpha > 0) for (unsigned j = 0; j < Nnod; ++j) assert(fabs(gradientPhiL[j]) < 1.0 + Nelt*EPS);
     //if (localOnly == 0) for (unsigned j = 0; j < Nnod; ++j) assert(fabs(gradientPhiNL[j]) <= 1.0);
 
     //for local: check that Y <= Yc
-    for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0 && d[j] < 1.0) assert( Y[j]/Ycv[j] < 1.0001);
+	if (alpha > 0) {
+    	for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0 && d[j] < 1.0) assert( Y[j]/Ycv[j] < 1.0 + EPS*Nnod);
+	}
 
 	//for non-local: check that Ybar <= Yc
-
+	if (minOpenDist == 0.0) {
     for (unsigned j = 0; j < segments.size(); ++j) assert( (segments[j]->YbarmYc)/Yc <= 1.e-6);
+	}
 
 	//for non-local: check that gradient of phi is 1 on all elements
 	if (nucleated > 0) {
         for (unsigned l = 0; l < segments.size(); ++l) {
-			for (unsigned j = segments[l]->begin()+1; j < segments[l]->end()-1; ++j) {
+		double qty = (segments[l]->phipeak-segments[l]->phimin)/(segments[l]->xpeak-segments[l]->xmin);
+		
+/*			for (unsigned j = segments[l]->begin()+1; j < segments[l]->end()-1; ++j) {
 				
-				assert( fabs(fabs(phiNL[j] - phiNL[j+1]) - h) < 0.01*h ); 
+				if( fabs(phiNL[j] - phiNL[j+1]) == h) {cout << " failing on segment " << l << "  element " << j << endl;} 
+				assert( fabs(phiNL[j] - phiNL[j+1]) == h); 
 			}
-		}
+*/		}
 	}
 
 	return;
@@ -1062,6 +1066,9 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
 	segments[index]->phimin = phiint;	
 	segments[other]->xmin = xint;	
 	segments[other]->phimin = phiint;	
+
+	double qty = (segments[index]->phipeak-segments[index]->phimin)/(segments[index]->xpeak-segments[index]->xmin);
+	assert( fabs(fabs(qty) - 1.0) < 1e-15);
 
 	return;
 }
