@@ -169,7 +169,6 @@ void PotentialAvenger::run() {
 
 	EPS = numeric_limits<double>::epsilon();
     d = vector<double>(Nelt,0);
-    d_type = vector<unsigned>(Nelt,0); //0-local, 0-NL: (the type of model used the last time d was computed)
     d_quad = vector<vector<double> >(Nelt);
     d_quad_wt = vector<vector<double> >(Nelt);
     d_1 = vector<double>(Nelt,0);
@@ -697,7 +696,6 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
                 //this makes compression fully in contact no matter what the damage
                 if (e[j] < 0) s[j] = e[j] * E;
             }
-			d_type[j] = 1;
 		}
 
         assert(d_quad[j].size() == d_quad_wt[j].size());
@@ -747,11 +745,6 @@ void PotentialAvenger::calculateStressesL(const vector<double>& pg, const vector
 
 		d_quad[j].push_back(d[j]);
         d_quad_wt[j].push_back(1.0);
-		d_type[j] = 0;
-		
-		assert(d_quad[j].size() == d_quad_wt[j].size());
-		assert(sum(d_quad_wt[j]) == 1.0);
-		assert(d_quad[j].size() == d_quad_wt[j].size());
     }
     return;
 }
@@ -1349,6 +1342,7 @@ double zero = 0.0;
         }
         while (delList.size() > 0) {
             unsigned index = delList.back(); 
+            delete newSegment.at(index);
             newSegment.erase(newSegment.begin() + index);
             delList.pop_back();
         }
@@ -1744,6 +1738,7 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
     }
     while (delList.size() > 0) {
         unsigned index = delList.back(); 
+        delete newSegment.at(index);
         newSegment.erase(newSegment.begin() + index);
         delList.pop_back();
     }
