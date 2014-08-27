@@ -255,7 +255,7 @@ nucleated = 1;
     checkInTLS(segments,inTLS,inTLSnode);
 
     //calculate stresses
-    calculateStressesL(pg,wg);
+	for (unsigned j = 0; j < Nelt; ++j) calculateStressesL(pg,wg,j);
 
     if (localOnly == 0) calculateStressesNL(pg,wg,segments);
     //acceleration
@@ -308,11 +308,14 @@ nucleated = 1;
 
         //updating the stress and level-set fields
 		//local
-        calculateStressesL(pg,wg); 
-        updateLevelSetL(i,nbiter,segments,pg,wg);
+		for (unsigned j = 0; j < Nelt; ++j) {
+			unsigned status = calculateStressesL(pg,wg,j); 
+        	if (status == 1) updateLevelSetL(i,nbiter,segments,pg,wg,j);
+		}
 		//non-local / TLS
 		if (localOnly == 0) {
         	updateLevelSetNL(i,nbiter,segments,pg,wg);
+    		analyzeDamage(x,phiNL,h,segments);
         	for (unsigned j = 0; j < Nnod; ++j)  phiNL[j] = max(phiNL[j], phiNL_1[j]);
         	calculateStressesNL(pg,wg,segments);
 		} 
@@ -346,9 +349,9 @@ nucleated = 1;
 		//if it nucleated this time-step, set YbarmYc = 0
 		if (numNuc > 0) for (unsigned l = nSegs; l < segments.size(); ++l) segments.at(l)->YbarmYc = 0.0;
 
-	    analyzeDamage(x,phiNL,h,segments);
 		if (numNuc > 0) {
             updateLevelSetNL(i,nbiter,segments,pg,wg);
+    		analyzeDamage(x,phiNL,h,segments);
         	for (unsigned j = 0; j < Nnod; ++j)  phiNL[j] = max(phiNL[j], phiNL_1[j]);
             checkInTLS(segments,inTLS,inTLSnode);
             calculateStressesNL(pg,wg,segments);
@@ -705,20 +708,23 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 
 	return;
 }
-void PotentialAvenger::calculateStressesL(const vector<double>& pg, const vector<double>& wg) {
 
-	for (unsigned j = 0; j < Nelt; ++j) {
+unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const vector<double>& wg, const unsigned& j) {
+
+	//for (unsigned j = 0; j < Nelt; ++j) {
 	    //inTLS == 0 : local damage model
+		unsigned status = 0;
 
         unsigned nodesInTLS = 0;
         if (inTLSnode[j]) nodesInTLS++;
         if (inTLSnode[j+1]) nodesInTLS++;
-        if (nodesInTLS >= 2) continue;
+        if (nodesInTLS >= 2) return 0;
 
 
 		d[j] = 0.0;
         s[j] = 0.0;
 		double dee = d_1[j];
+//cout << " dee before = " << dee << "  phiL before = " << phiL[j] << endl;
 		//check to see if damage needs to be recalculated; (local model so no need to use quadrature for dH)
 		if (0.5 * E * e[j] * e[j] > dH(j,d_1[j]) + Ycv[j]) 	{
 			double factor = sqrt(2.0 * Ycv[j] / (E * e[j] * e[j]) ); 
@@ -745,8 +751,15 @@ void PotentialAvenger::calculateStressesL(const vector<double>& pg, const vector
 
 		d_quad[j].push_back(d[j]);
         d_quad_wt[j].push_back(1.0);
-    }
-    return;
+
+/*		if (d[j] > 0.0) {
+			printf("elem = %u, 0.5Eee = %6.3e, dH = %6.3e, Ycv = %6.3e\n",j, 0.5 * E * e[j] * e[j], dH(j,d_1[j]), Ycv[j]);
+			cout << "   new D = " << d[j] << endl;
+			assert(1 == 0);
+		} 
+  */  
+	//}
+    return status;
 }
 
 void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>& pg, const vector<double>& wg) {
@@ -814,16 +827,21 @@ double PotentialAvenger::d2H (const unsigned j, const double dee) const {
     return (2.0 * Ycv[j] * alpha) /pow(1.0 - alpha * dee,3);
 }    
 
-void PotentialAvenger::updateLevelSetL( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg ) {
+void PotentialAvenger::updateLevelSetL( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg, const unsigned& j) {
 
-     for (unsigned j = 0; j < Nelt; ++j) {
+     //for (unsigned j = 0; j < Nelt; ++j) {
         unsigned nodesInTLS = 0;
         if (inTLSnode[j]) nodesInTLS++;
         if (inTLSnode[j+1]) nodesInTLS++;
 		double dee = d[j];
         if (nodesInTLS < 2) 	phiL[j] = dm.phi(dee);
 		else 				phiL[j] = 0.0;
-     }
+	
+		if (phiL[j]> 0 ) {
+			cout << "dee = " << dee << " -> phiL = " << phiL[j] << endl;
+			//assert(1==0);
+		}
+     //}
 	 return;
 }
 
@@ -885,7 +903,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
             if (l == 1 && segments[l]->begin() == 0) flag = 0;
             if (l == segments.size()-1 && segments[l]->end() == Nnod-1) flag = 0;
             residu = YbarmYc;
-            err_crit = fabs(residu)/Ycavg;
+            err_crit = fabs(residu)/Yc ; //Ycavg;
 
             double tangent = tangent_Y/dm.dval(phimax)  - residu * dm.dp(phimax)/dm.dval(phimax);
 //            double tangent = (tangent_Y + (phiminY-Ycavg)*dm.dp(phimin) )/( dm.dval(phimax)-dm.dval(phimin)) - dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),1) * residu;
@@ -924,9 +942,13 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 
     } //for segments
 
-	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
-
     return;
+}
+
+void PotentialAvenger::setPeakAll(vector<Segment*>& segments) {
+	for (unsigned l = 0; l < segments.size(); ++l) 	cout << " segment " << l << "  begin (" << x[segments[l]->begin()] << "," << phiNL[segments[l]->begin()] << ")    end = (" << x[segments[l]->end()] << ", " << phiNL[segments[l]->end()] << endl; 
+	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
+	return;
 }
 
 void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& phiIn, vector<Segment*>& segments, const unsigned index) {
@@ -1017,7 +1039,7 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
 		if (other == index && (sbegin == 0) ) {
 			segments[index]->xmin = x[sbegin];	
 			segments[index]->phimin = phiIn[sbegin];
-			return;
+			goto end;
 		}
 
 		assert(other != index);
@@ -1036,7 +1058,7 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
         if (other == index && (send == Nnod - 1) ) {
             segments[index]->xmin = x[send];    
             segments[index]->phimin = phiIn[send];
-            return; 
+            goto end; 
         }
 	
         assert(other != index);
@@ -1060,8 +1082,10 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
 	segments[other]->xmin = xint;	
 	segments[other]->phimin = phiint;	
 
+	end:
+
 	double qty = (segments[index]->phipeak-segments[index]->phimin)/(segments[index]->xpeak-segments[index]->xmin);
-	assert( fabs(fabs(qty) - 1.0) < 1e-15);
+	assert( segments[index]->phimin <= segments[index]->phipeak);
 
 	return;
 }
@@ -1077,9 +1101,9 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 
     phimin = phiNL[sbegin];
     unsigned iphimin = sbegin;
-
-    for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send,Nelt-1); ++j) {
-        if (j < 0) continue;
+    for (unsigned j = 0; j <= Nelt; ++j) {
+		if (x[j+1] < min(segment->xpeak,segment->xmin)) continue;
+		if (x[j] > max(segment->xpeak,segment->xmin)) continue;
 
 		if (inTLSnode[j]+inTLSnode[j+1] == 0) continue;
         assert(pg.size() == wg.size());
@@ -1106,7 +1130,7 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
         
 			if  (phiNL[j] > 0 && phiNL[j+1] <= 0) {
                 delta = h * fabs(phiNL[j]) / (fabs(phiNL[j])+fabs(phiNL[j+1])); //phi>0 portion
-                weight = x[j] + delta - max(x[j], xpeak);
+                weight = min(weight, delta);//x[j] + delta - max(x[j], xpeak);
 				weight = max(0.0,min(weight,h));
                 philoc = pg[k] * weight;
                 residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
@@ -1123,7 +1147,7 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
             } else if  (phiNL[j] <= 0 && phiNL[j+1] > 0) {
 
            		delta = h * fabs(phiNL[j+1]) / (fabs(phiNL[j])+fabs(phiNL[j+1])); //phi>0 portion
-                weight = min(xpeak, x[j+1]) - x[j+1] + delta;
+                weight = min(weight,delta);//min(xpeak, x[j+1]) - x[j+1] + delta;
 				weight = max(0.0,min(weight,h));
                	philoc = pg[k] * weight;
                 residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
@@ -1208,7 +1232,7 @@ if (segLength <= 0.0) {
     cout << " residuY = " << residu_Y << "    Yc = " << Yc << endl;
     cout << " YbarmYc = " << YbarmYc << endl;
 }
-	assert(segLength <= fabs(segment->xpeak - segment->xmin)/h );
+	assert(segLength <= fabs(segment->xpeak - segment->xmin)/h + 1.0e-6);
 	assert(segLength > 0.0);
 	Ycavg /= segLength;
 

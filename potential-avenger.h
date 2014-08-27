@@ -60,7 +60,7 @@ double EPS,alfa;
 void printRunInfo();
 
 void calculateEnergies(const unsigned& i, const std::vector<double>& pg, const std::vector<double>& wg);
-void calculateStressesL(const std::vector<double>& pg, const std::vector<double>& wg);
+unsigned calculateStressesL(const std::vector<double>& pg, const std::vector<double>& wg, const unsigned& j);
 void calculateStressesNL(const std::vector<double>& pg, const std::vector<double>& wg, std::vector<Segment*>& newSegment);
 void setPeak(const std::vector<double>& x, const std::vector<double>& phi, std::vector<Segment*>& segments, const unsigned index);
 
@@ -88,7 +88,7 @@ void checkInTLS(const std::vector<Segment*>& segments, std::vector<unsigned>& el
 void checkConstraints(const std::vector<double>& gradientPhiL, const std::vector<double>& gradientPhiNL, const std::vector<Segment*>& segments);
 
 //update level set for nodes in TLS
-void updateLevelSetL(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
+void updateLevelSetL(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg, const unsigned& j);
 void updateLevelSetNL(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
 
 double H(const unsigned, const double);
@@ -120,6 +120,7 @@ void printClean() const;
 void fragmentStats(const std::vector<double>& fragLength);
 void killSegments(std::vector<Segment*>& seg);
 void killFragments(std::vector<Fragment*>& frag);
+void setPeakAll(std::vector<Segment*>& segments);
 
 };
 
