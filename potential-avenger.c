@@ -264,7 +264,7 @@ nucleated = 1;
     for (unsigned j = 1; j < Nnod-1; ++j)  a[j] = A*(s[j] - s[j-1]) /m[j];
 
     nbiter[0] = 0;
-    analyzeDamage(x,phiNL,h,segments);
+    analyzeDamage(phiNL,h,segments);
     unsigned len = 0;
     for (unsigned l = 0; l < segments.size(); ++l) {
         if (segments[l]->size() == 0) continue;
@@ -315,7 +315,8 @@ nucleated = 1;
 		//non-local / TLS
 		if (localOnly == 0) {
         	updateLevelSetNL(i,nbiter,segments,pg,wg);
-    		analyzeDamage(x,phiNL,h,segments);
+        	if (nucleated > 0) setPeakAll(phiNL,segments); 
+    		analyzeDamage(phiNL,h,segments);
         	for (unsigned j = 0; j < Nnod; ++j)  phiNL[j] = max(phiNL[j], phiNL_1[j]);
         	calculateStressesNL(pg,wg,segments);
 		} 
@@ -350,8 +351,11 @@ nucleated = 1;
 		if (numNuc > 0) for (unsigned l = nSegs; l < segments.size(); ++l) segments.at(l)->YbarmYc = 0.0;
 
 		if (numNuc > 0) {
+        	setPeakAll(phiNL,segments); 
             updateLevelSetNL(i,nbiter,segments,pg,wg);
     		analyzeDamage(x,phiNL,h,segments);
+        	setPeakAll(phiNL,segments); 
+    		analyzeDamage(phiNL,h,segments);
         	for (unsigned j = 0; j < Nnod; ++j)  phiNL[j] = max(phiNL[j], phiNL_1[j]);
             checkInTLS(segments,inTLS,inTLSnode);
             calculateStressesNL(pg,wg,segments);
@@ -542,7 +546,7 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 
 	//for non-local: check that Ybar <= Yc
 	if (minOpenDist == 0.0) {
-    for (unsigned j = 0; j < segments.size(); ++j) assert( (segments[j]->YbarmYc)/Yc <= 1.e-6);
+    for (unsigned j = 0; j < segments.size(); ++j) assert( (segments[j]->YbarmYc) <= 1.e-6);
 	}
 
 	//for non-local: check that gradient of phi is 1 on all elements
@@ -933,25 +937,26 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
         	//setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
         } //endwhile
 		assert(nbiter[i] >= iter_max || YbarmYc/Yc <= 1.e-6);
+		assert(YbarmYc/Yc <= 1.e-6);
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
             }
         next:
         err_crit = 0.0;
-        //setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
+        //setPeak(phiNL,segments,l); //segments[l].phipeak += dphi; 
 
     } //for segments
 
     return;
 }
 
-void PotentialAvenger::setPeakAll(vector<Segment*>& segments) {
+void PotentialAvenger::setPeakAll(const vector<double>&phiIn, vector<Segment*>& segments) {
 	for (unsigned l = 0; l < segments.size(); ++l) 	cout << " segment " << l << "  begin (" << x[segments[l]->begin()] << "," << phiNL[segments[l]->begin()] << ")    end = (" << x[segments[l]->end()] << ", " << phiNL[segments[l]->end()] << endl; 
-	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
+	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(phiIn,segments,l); //segments[l].phipeak += dphi; 
 	return;
 }
 
-void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& phiIn, vector<Segment*>& segments, const unsigned index) {
+void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& segments, const unsigned index) {
 	unsigned sbegin = segments[index]->begin();
 	unsigned send = segments[index]->end();	
 	double slope = static_cast<double>(segments[index]->slope);
@@ -979,6 +984,13 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
 			goto setMin;
 		}
 
+		if (other == index) {
+			segments[index]->xpeak = 0.5 * (x[sbegin] + x[send]);
+			segments[index]->phipeak = 0.5 * (phiIn[sbegin] + phiIn[send]);
+			other = -1;
+			otherSlope = -slope;
+			goto setMin;
+		}
 		assert(other != index);
 		assert(otherSlope != slope);
 	} else {
@@ -996,6 +1008,13 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
             segments[index]->xpeak = x[sbegin];    
             segments[index]->phipeak = phiIn[sbegin];
             goto setMin; 
+        }
+        if (other == index) {
+            segments[index]->xpeak = 0.5 * (x[sbegin] + x[send]);
+            segments[index]->phipeak = 0.5 * (phiIn[sbegin] + phiIn[send]);
+			other = -1;
+            otherSlope = -slope;
+			goto setMin;
         }
 	
         assert(other != index);
@@ -1042,6 +1061,14 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
 			goto end;
 		}
 
+        if (other == index) {
+            segments[index]->xmin = 0.5 * (x[sbegin] + x[send]);
+            segments[index]->phimin = 0.5 * (phiIn[sbegin] + phiIn[send]);
+            otherSlope = -slope;
+			other = -1;
+			goto end;
+        }
+
 		assert(other != index);
 		assert(otherSlope != slope);
 	} else {
@@ -1060,6 +1087,14 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
             segments[index]->phimin = phiIn[send];
             goto end; 
         }
+
+        if (other == index) {
+            segments[index]->xmin = 0.5 * (x[sbegin] + x[send]);
+            segments[index]->phimin = 0.5 * (phiIn[sbegin] + phiIn[send]);
+            otherSlope = -slope;
+			other = -1;
+			goto end;
+        }
 	
         assert(other != index);
         assert(otherSlope != slope);
@@ -1070,7 +1105,7 @@ void PotentialAvenger::setPeak(const vector<double>& x, const vector<double>& ph
 	a2 = otherSlope;
 	b1 = phiIn[sbegin] - slope * x[sbegin]; 
 	b2 = phiIn[segments[other]->begin()] - segments[other]->slope * x[segments[other]->begin()];;
-	assert(a1 - a2 != 0.0);	
+	assert(a1 - a2 != 0.0);
 
 	//intersect
 	xint = (b2 - b1) / (a1 - a2);
@@ -1119,9 +1154,11 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 			double dist;
 			if (segment->slope == 1) {
 				assert(xpeak >= xmin);
+				assert(xpeak >= xmin - EPS);
 				dist = min( min(xpeak - x[j], x[j+1]-xmin), xpeak-xmin);
 			} else if (segment->slope == -1) {
 				assert(xmin >= xpeak);
+				assert(xmin >= xpeak - EPS);
 				dist = min( min(x[j+1] - xpeak, xmin - x[j]), xmin - xpeak); 
 			} else {
 				assert(1 == 0);
@@ -1321,11 +1358,15 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc,
              if (xnuc[j] > x[0]) {
                  Segment* seg1 = new Segment(xnuc[j]+delta,phiNL[loc]+fabs(delta),-1);
                  seg1->indices.push_back(loc);
+				 seg1->xpeak = xnuc[j] + delta;
+				 seg1->phipeak = phiNL[loc]+fabs(delta);
                  newSegment.push_back(seg1);
              }
              if (xnuc[j] < x.back()) {
                  Segment* seg2 = new Segment(xnuc[j]+delta,phiNL[loc]+fabs(delta),1);
                  seg2->indices.push_back(loc+1);
+				 seg2->xpeak = xnuc[j] + delta;
+				 seg2->phipeak = phiNL[loc]+fabs(delta);
                  newSegment.push_back(seg2);
              }
 
@@ -1658,8 +1699,8 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
 	return xlist.size();
 };
 
-void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& phiV, const double h, vector<Segment*>& newSegment) {
 
+void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vector<Segment*>& newSegment) {
     //produce:
     //new phi based on distances - maxima
 
@@ -1767,9 +1808,28 @@ void PotentialAvenger::analyzeDamage(const vector<double>& x, vector<double>& ph
         delList.pop_back();
     }
 
+	//make sure segments don't overlap
+	for (unsigned i = 0; i < newSegment.size(); ++i) {
+		for (unsigned j = i + 1; j < newSegment.size(); ++j) {
+			vector<int> endpoints;
+			endpoints.push_back(newSegment[i]->begin());
+			endpoints.push_back(newSegment[i]->end());
+			endpoints.push_back(newSegment[j]->begin());
+			endpoints.push_back(newSegment[j]->end());
+			sort(endpoints.begin(),endpoints.end());
+			int L1 = abs(static_cast<int>(newSegment[i]->begin()) - static_cast<int>(newSegment[i]->end()));	
+			int L2 = abs(static_cast<int>(newSegment[j]->begin()) - static_cast<int>(newSegment[j]->end()));
+			int dist = endpoints.back() - endpoints.front();
+			cout << " segment " << i << " : " << newSegment[i]->begin() << " - " << newSegment[i]->end() << "  & segment " << j << " : " << newSegment[j]->begin() << " - " << newSegment[j]->end() << endl;
+			cout << " L1 = " << L1 << "  L2 = " << L2 << "   dist = " << dist << "    diff = " << dist-L1-L2 << endl;
+			assert(dist > L1 + L2);	
+		}
+
+	}	
+
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
-        setPeak(x,phinew,newSegment,i);
+        setPeak(phinew,newSegment,i);
         tot_indices += newSegment[i]->size();
         if (newSegment[i]->phipeak> 0 ) assert(newSegment[i]->indices.size() <= x.size());
     }
