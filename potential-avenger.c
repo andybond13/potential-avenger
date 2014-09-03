@@ -1474,6 +1474,7 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 			for (unsigned l = 0; l < segments.size(); ++l) {
 				if ( (segments[l]->xpeak >= x[j]) && (segments[l]->xpeak <= x[j+1]) ) hasPeak = true;
 				if ( (segments[l]->xmin >= x[j]) && (segments[l]->xmin <= x[j+1]) ) hasMin = true;
+			}
 			if (hasPeak && hasMin) {
 				//could be slope = -1, 1, -1 or 1, -1 , 1
 
