@@ -1034,8 +1034,6 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	//save peaks
 	segments[index]->xpeak = xint;	
 	segments[index]->phipeak = phiint;	
-	segments[other]->xpeak = xint;	
-	segments[other]->phipeak = phiint;	
 
 	setMin:
 	//set minimum	
@@ -1057,6 +1055,10 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 		if (other == index && (sbegin == 0) ) {
 			segments[index]->xmin = x[sbegin];	
 			segments[index]->phimin = phiIn[sbegin];
+			if (segments[index]->xpeak < x[0]) {
+				segments[index]->phipeak -= segments[index]->xpeak;
+				segments[index]->xpeak = 0.0;
+			}
 			goto end;
 		}
 
@@ -1084,6 +1086,10 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
         if (other == index && (send == Nnod - 1) ) {
             segments[index]->xmin = x[send];    
             segments[index]->phimin = phiIn[send];
+            if (segments[index]->xpeak > x[Nelt]) {
+                segments[index]->phipeak += segments[index]->xpeak - x[Nelt];
+                segments[index]->xpeak = x[Nelt];
+            }
             goto end; 
         }
 
@@ -1113,10 +1119,35 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	//save peaks
 	segments[index]->xmin = xint;	
 	segments[index]->phimin = phiint;	
-	segments[other]->xmin = xint;	
-	segments[other]->phimin = phiint;	
 
 	end:
+	
+	//correct if needed
+	if (segments[index]->xpeak < 0) {
+		double qty = segments[index]->xpeak;
+		segments[index]->xpeak = 0;
+		segments[index]->phipeak -= slope * qty;
+	}
+    if (segments[index]->xpeak > L) {
+        double qty = segments[index]->xpeak - L;
+        segments[index]->xpeak = L;
+        segments[index]->phipeak -= slope * qty;
+    }
+    if (segments[index]->xmin < 0) {
+        double qty = segments[index]->xmin;
+        segments[index]->xmin = 0;
+        segments[index]->phimin -= slope * qty;
+    }
+    if (segments[index]->xmin > L) {
+        double qty = segments[index]->xmin - L;
+        segments[index]->xmin = 0;
+        segments[index]->phimin -= slope * qty;
+    }
+
+    assert(segments[index]->xpeak <= L);
+    assert(segments[index]->xpeak >= 0.0);
+    assert(segments[index]->xmin <= L);
+    assert(segments[index]->xmin >= 0.0);
 
 	double qty = (segments[index]->phipeak-segments[index]->phimin)/(segments[index]->xpeak-segments[index]->xmin);
 	assert( segments[index]->phimin <= segments[index]->phipeak);
@@ -1483,7 +1514,6 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 
 			
 			}
-			assert(hasPeak*hasMin == 0);
 
             if (hasPeak && !hasMin) {
 				//peak
