@@ -353,7 +353,6 @@ nucleated = 1;
 		if (numNuc > 0) {
         	setPeakAll(phiNL,segments); 
             updateLevelSetNL(i,nbiter,segments,pg,wg);
-    		analyzeDamage(x,phiNL,h,segments);
         	setPeakAll(phiNL,segments); 
     		analyzeDamage(phiNL,h,segments);
         	for (unsigned j = 0; j < Nnod; ++j)  phiNL[j] = max(phiNL[j], phiNL_1[j]);
@@ -1844,6 +1843,7 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
     if (nucleated == 0) assert(nSegs == newSegment.size());
     
     //ensure that segment indices are contiguous
+/*
     bool flag = true;
     while (flag == true) {
     flag = false;
@@ -1873,6 +1873,7 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
         }
     }
 
+*/
 };  
 
 void PotentialAvenger::printRunInfo() {
