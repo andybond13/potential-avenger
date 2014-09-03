@@ -951,7 +951,6 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 }
 
 void PotentialAvenger::setPeakAll(const vector<double>&phiIn, vector<Segment*>& segments) {
-	for (unsigned l = 0; l < segments.size(); ++l) 	cout << " segment " << l << "  begin (" << x[segments[l]->begin()] << "," << phiNL[segments[l]->begin()] << ")    end = (" << x[segments[l]->end()] << ", " << phiNL[segments[l]->end()] << endl; 
 	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(phiIn,segments,l); //segments[l].phipeak += dphi; 
 	return;
 }
@@ -1475,10 +1474,17 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 			for (unsigned l = 0; l < segments.size(); ++l) {
 				if ( (segments[l]->xpeak >= x[j]) && (segments[l]->xpeak <= x[j+1]) ) hasPeak = true;
 				if ( (segments[l]->xmin >= x[j]) && (segments[l]->xmin <= x[j+1]) ) hasMin = true;
+			if (hasPeak && hasMin) {
+				//could be slope = -1, 1, -1 or 1, -1 , 1
+
+				//TODO
+				solidLength = h;
+
+			
 			}
 			assert(hasPeak*hasMin == 0);
 
-            if (hasPeak) {
+            if (hasPeak && !hasMin) {
 				//peak
 				solidLength = 0.0;
 				double delta = 0.5 * (phiNL[j+1] - phiNL[j] + h);
@@ -1513,7 +1519,7 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 
 
 			}
-			if (hasMin) {
+			if (hasMin && !hasPeak) {
 				//anti-peak
 				double delta = 0.5 * (phiNL[j] - phiNL[j+1] + h);
         	    if (phiNL[j] < lc && phiNL[j+1] < lc) {
