@@ -737,6 +737,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
             if (dee > 1.0)
                 dee = 1.0;
             assert(nodesInTLS < 2);
+			status = 1;
 		}
         if (dee > d_max[j]) d_max[j] = dee;		//update maximum damage
 		d[j] = dee;
