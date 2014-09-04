@@ -1806,27 +1806,8 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 			else newSegment[2*segphimin+1]->indices.push_back(i);
 		}
         //assert(newSegment[segphimin].slope != 0);
-        if (phiV[i] > phinew[i] && inTLSnode[i] == 0) {
-//            cout << "i = " << i << " shouldn't be in TLS: phi = " << phiV[i] << " , phinew = " << phinew[i] << endl;
-            removeList.push_back(i);
-        }
         phinew[i] = max(phinew[i],phiV[i]);
     }
-
-    // need to remove not-in-TLS from segments 
-    for (unsigned i = 0; i < removeList.size(); ++i) {
-        int index = removeList[i];
-        for (unsigned j = 0; j < newSegment.size(); ++j) {
-            for (unsigned k = 0; k < newSegment[j]->indices.size(); ++k) {
-                if (newSegment[j]->indices[k] == index) {
-                    newSegment[j]->indices.erase(newSegment[j]->indices.begin() + k);
-//                  cout << "  removed index " << index << " from segment " << j << endl;
-                    break;
-                }
-            }
-        }
-    }
-
 
     //delete empty segments
     vector<unsigned> delList;
