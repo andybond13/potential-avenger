@@ -838,14 +838,14 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 		unsigned iter_max = 50; 
         while (err_crit > 1.e-6 && nbiter[i] < iter_max) {
             nbiter[i]++;
-
+			double residu_Y = 0.0;
 			double tangent_Y = 0.0;
             double phimin = 0.0;
 			double phimax = 0.0; 
             double phiminY = 0.0;
 			double phimaxY = 0.0;
 			double Ycavg = 0.0; 
-            unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l]);
+            unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l]);
 			if (status == 0) goto next;
 			if (YbarmYc < 0 && nbiter[i] == 1) goto next;
 			if (segments[l]->phimin >= lc) goto next;
