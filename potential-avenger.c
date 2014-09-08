@@ -5,32 +5,9 @@
 
 #include <potential-avenger.h>
 #include <limits>
-#include <math.h>
 #include <sys/stat.h>
 
 using namespace std;
-
-int main(int argc, const char* argv[]) {
-    assert(argc == 14);
-
-    double strain_rate = atof(argv[1]);
-    double ts_refine = atof(argv[2]);
-    double end_t = atof(argv[3]);
-    unsigned Nelt = atoi(argv[4]);
-    double lc = atof(argv[5]);
-    unsigned startWithLoad = atoi(argv[6]);
-    unsigned printVTK = atoi(argv[7]);
-    int oneAtATime = atoi(argv[8]);
-    double minOpenDist = atof(argv[9]);
-	double alpha = atof(argv[10]);
-    unsigned localOnly = atoi(argv[11]);
-    unsigned visualizeCracks = atoi(argv[12]);
-    unsigned fullCompression = atoi(argv[13]);
-    string path = ".";
-
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, path);
-    pa.run();
-}
 
 PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& path){
     strain_rate = in0;
@@ -138,35 +115,27 @@ double printable (double in) {
     else return in;
 }
 
-void PotentialAvenger::run() {
+void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double& Ain, const double& Lin, const double& Ycin, const vector<double>& pg, const vector<double>& wg, const vector<double>& phiIn, const vector<Segment*> segIn, unsigned& nucleated, bool& vbc, const vector<double>& eIn, const vector<double>& xIn, const vector<double>& uIn, const vector<double>& vIn, const vector<double>& YcvIn, DamageModel& dm) {
 
     printRunInfo();
 
-    dm = DamageModel("Parabolic",lc);
+	//copy input variables
+	E = Ein;
+	rho = rhoIn;
+	A = Ain;
+	L = Lin;
+	Yc = Ycin;
 
     Nnod = Nelt+1;
     _Nt = 0;
-    E = 610.0; //(beton)
-    rho = 3.9e-6; //(beton)
-    A = 0.2; // barre de 10cm sur 10cm
     double c = sqrt(E/rho);
-    L = 1.0;
     h = 1/static_cast<double>(Nelt); //
     double cfl = 1./ts_refine;
     dt = cfl * h/c;//
     unsigned Ntim = static_cast<unsigned>(Nelt*ts_refine*end_t*c)+1;
-    Yc = 8.1967e-4;//E/10;
     ec = sqrt(2 * Yc / E);
     sigc = E * ec;
-
-    // two gauss point on the element
-    vector<double> pg(2);
-    pg[0] = (1-sqrt(3)/3)/2;
-    pg[1] = (1+sqrt(3)/3)/2;
-    vector<double> wg(2);
-    wg[0] = 0.5;
-    wg[1] = 0.5;
-
+	
 	EPS = numeric_limits<double>::epsilon();
     d = vector<double>(Nelt,0);
     d_quad = vector<vector<double> >(Nelt);
@@ -189,11 +158,11 @@ void PotentialAvenger::run() {
 
     ustat = vector<double>(Nnod,0);
     Ystat = vector<double>(Nnod,0);
-    u = vector<double>(Nnod,0);
-    v = vector<double>(Nnod,0);
+    u = uIn;
+    v = vIn;
     a = vector<double>(Nnod,0);
     phiL = vector<double>(Nelt,0);
-    phiNL = vector<double>(Nnod,0);
+    phiNL = phiIn;
 
     phiNL_1 = vector<double>(Nnod,0);
     phidot = vector<vector<double> >(Ntim);
@@ -205,19 +174,14 @@ void PotentialAvenger::run() {
     nfrags = vector<unsigned>(Ntim,0);
     _numFrag = 0;
     vector<Segment*> segments;
-    nucleated = 0;
 
     m.assign(Nnod,rho*h*A);
     m[0] = m[0]/2; m[Nnod-1] = m[Nnod-1]/2;
 
     //initialization
-	double alfa = 1.0 - pow(1.0 - L * strain_rate * sqrt(rho/(2*Yc)),2); 
-    Ycv[0] *= (1.0-alfa);
-	double qty = sqrt(2.0*Yc*(1.0-alfa)/E)  * static_cast<double>(startWithLoad);
-	double e0 = qty; //max(qty - fmod(qty, (strain_rate * dt)), 0.0);
-    e = vector<double>(Nelt,e0);
-    x = vector<double>(Nnod,0);
-    for (unsigned j = 0; j < Nnod; ++j) x[j] = static_cast<double>(j)*h;
+	Ycv = YcvIn;
+	e = eIn;
+	x = xIn;
 
     xe = vector<double>(Nnod,0);
     for (unsigned j = 0; j < Nelt; ++j) xe[j] = 0.5*(x[j] + x[j+1]);
@@ -232,22 +196,11 @@ void PotentialAvenger::run() {
     // and ill thus give an unloading wave.
 
     //constant strain rate applied
-    double csr = strain_rate;
-    bool vbc = true;
-    for (unsigned j = 0; j < Nnod; ++j) v[j] = static_cast<double>(vbc)*csr*x[j];
-    v[Nnod-1] = csr;
 
     for (unsigned j = 0; j < Nnod; ++j) {
-        u[j] = x[j] * e0;//x[j] * ec * L * 0.999*(1-vbc);
         ustat[j] = 0.0;//x[j] * ec * L * 0.999*(1-vbc);
         if (j < Nnod-1) phiL[j] = 0.0;//(2*h-x[j])*(1-vbc)-vbc;
-        phiNL[j] = 2.0*h-x[j];
     }
-    Segment* seg1 = new Segment(x[0],phiNL[0],-1);
-    seg1->indices.push_back(-1);
-    segments.push_back(seg1);
-    for (unsigned j = 0; j < Nnod; ++j) segments[0]->indices.push_back(j);
-nucleated = 1;
 
     //check to see which elements are in TLS zones
     inTLS.assign(Nelt,0);
@@ -414,10 +367,10 @@ nucleated = 1;
             //clear Ybar
             segments[l]->YbarmYc = 0.0; 
             double YbarmYc = 0.0; double Ycavg = 0.0;
-            double tangent_Y = 0.0;
+            double residu_Y = 0.0; double tangent_Y = 0.0;
             double phimin = 0.0;  double phimax = 0.0;
        		double phiminY = 0.0; double phimaxY = 0.0;
-        	unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l]);
+        	unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l]);
 		}
 
         //check enforcement of constraints
@@ -841,10 +794,6 @@ void PotentialAvenger::updateLevelSetL( const unsigned& i, vector<unsigned>& nbi
         if (nodesInTLS < 2) 	phiL[j] = dm.phi(dee);
 		else 				phiL[j] = 0.0;
 	
-		if (phiL[j]> 0 ) {
-			cout << "dee = " << dee << " -> phiL = " << phiL[j] << endl;
-			//assert(1==0);
-		}
      //}
 	 return;
 }
@@ -1155,8 +1104,8 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	return;
 }
 
-unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<double>& wg, double& Ycavg, double& YbarmYc, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment) {
-    double residu_Y = 0; 
+unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<double>& wg, double& Ycavg, double& YbarmYc, double& residu_Y, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment) {
+    residu_Y = 0; 
     tangent_Y = 0.0; 
     unsigned loop_residu = 0;
     unsigned loop_tangent = 0;
@@ -1838,8 +1787,6 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 			int L1 = abs(static_cast<int>(newSegment[i]->begin()) - static_cast<int>(newSegment[i]->end()));	
 			int L2 = abs(static_cast<int>(newSegment[j]->begin()) - static_cast<int>(newSegment[j]->end()));
 			int dist = endpoints.back() - endpoints.front();
-			cout << " segment " << i << " : " << newSegment[i]->begin() << " - " << newSegment[i]->end() << "  & segment " << j << " : " << newSegment[j]->begin() << " - " << newSegment[j]->end() << endl;
-			cout << " L1 = " << L1 << "  L2 = " << L2 << "   dist = " << dist << "    diff = " << dist-L1-L2 << endl;
 			assert(dist > L1 + L2);	
 		}
 

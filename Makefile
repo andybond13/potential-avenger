@@ -18,5 +18,7 @@ $(EXECUTABLE): $(OBJECTS)
 dSYM:
 	dsymutil potential-avenger.exe -o potential-avenger.exe.dSYM
 
+test:
+
 clean:
 	rm *.o *.exe; rm -rf *dSYM

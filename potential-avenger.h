@@ -1,13 +1,11 @@
 //potential-avenger.h
 //Andrew Stershic
 //DCML, Duke University
-//(c) 2013
+//(c) 2013,2014
 
-#include <stdio.h>
-#include <vector>
 #include <objects.h>
 #include <damageModel.h>
-#include <iostream>
+#include <math.h>
 
 #ifndef POTENTIAL_AVENGER_H
 #define POTENTIAL_AVENGER_H
@@ -16,7 +14,7 @@ class PotentialAvenger{
 
 public:
 //dyndimresttls.m
-void run();
+void run(const double& E, const double& rho, const double& A, const double& L, const double& Yc, const std::vector<double>& pg, const std::vector<double>& wg, const std::vector<double>& phiIn, const std::vector<Segment*> segIn, unsigned& nucleated, bool& vbc, const std::vector<double>& eIn, const std::vector<double>& xIn, const std::vector<double>& uIn, const std::vector<double>& vIn, const std::vector<double>& YcvIn, DamageModel& dm);
 
 PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, std::string& path);
 ~PotentialAvenger();
@@ -96,7 +94,7 @@ double dH(const unsigned, const double) const;
 double d2H(const unsigned, const double) const;
 
 //calculate Ybar
-unsigned calculateYbar(const std::vector<double>& pg, const std::vector<double>& wg, double& Ycavg, double& YbarmYc, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment);
+unsigned calculateYbar(const std::vector<double>& pg, const std::vector<double>& wg, double& Ycavg, double& YbarmYc, double& residu_Y, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment);
 
 void calculateDmaxAlt(const std::vector<double>& pg, const std::vector<double>& wg);
 
