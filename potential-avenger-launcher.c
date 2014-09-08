@@ -7,6 +7,16 @@
 
 using namespace std;
 
+void writeDisplacements (const vector<double>& uIn, const double& L) {
+    //write displacements to file for testing
+    string dispFil = "./raw_disp.out";
+    FILE * pFileP;
+    pFileP = fopen(dispFil.c_str(), "w");
+    fprintf( pFileP, "#raw displacements normalized by length\n");
+    for (unsigned j = 0; j < uIn.size(); ++j) fprintf(pFileP, "%0.8g\n",uIn.at(j)/L);
+	return;
+}
+
 int main(int argc, const char* argv[]) {
     assert(argc == 14);
  
@@ -48,19 +58,20 @@ int main(int argc, const char* argv[]) {
 	double e0 = qty;
 	vector<double> eIn = vector<double>(Nelt,e0);
 	vector<double> xIn = vector<double>(Nnod,0);
-	for (unsigned j = 0; j < Nnod; ++j) xIn[j] = static_cast<double>(j) * h;
-	vector<double> uIn;
+	vector<double> uIn = vector<double>(Nnod,0);
 	vector<double> vIn = vector<double>(Nnod,0);
-	for (unsigned j = 0; j < Nnod; ++j) vIn[j] = static_cast<double>(vbc) * strain_rate * xIn[j];
-	vIn[Nnod-1] = strain_rate;
 	vector<double> YcvIn = vector<double>(Nnod, Yc);
 	YcvIn[0] *= (1.0 - alfa);
 	DamageModel dm = DamageModel("Parabolic", lc);
 
 
 	for (unsigned j = 0; j < Nnod; ++j) {
+		xIn[j] = static_cast<double>(j) * h;
+		uIn[j] = xIn[j] * e0;
+		vIn[j] = static_cast<double>(vbc) * strain_rate * xIn[j];
 		phiIn[j] = 2.0 * h - xIn[j];
 	}	
+	vIn[Nnod-1] = strain_rate;
 
 	vector<Segment*> segIn;
 	Segment* seg1 = new Segment(xIn[0], phiIn[0], -1);
@@ -69,5 +80,8 @@ int main(int argc, const char* argv[]) {
 	unsigned nucleated = 1;
 
     pa.run(E, rho, A, L, Yc, pg, wg, phiIn, segIn, nucleated, vbc, eIn, xIn, uIn, vIn, YcvIn, dm);
+	
+	//write displacements to file for testing
+	//writeDisplacements(uIn,L);
 }
 

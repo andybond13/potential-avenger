@@ -115,7 +115,7 @@ double printable (double in) {
     else return in;
 }
 
-void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double& Ain, const double& Lin, const double& Ycin, const vector<double>& pg, const vector<double>& wg, const vector<double>& phiIn, const vector<Segment*> segIn, unsigned& nucleated, bool& vbc, const vector<double>& eIn, const vector<double>& xIn, const vector<double>& uIn, const vector<double>& vIn, const vector<double>& YcvIn, DamageModel& dm) {
+void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double& Ain, const double& Lin, const double& Ycin, const vector<double>& pg, const vector<double>& wg, const vector<double>& phiIn, const vector<Segment*> segIn, const unsigned& nucleatedIn, bool& vbc, const vector<double>& eIn, const vector<double>& xIn, vector<double>& uIn, const vector<double>& vIn, const vector<double>& YcvIn, const DamageModel& dmIn) {
 
     printRunInfo();
 
@@ -125,6 +125,8 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 	A = Ain;
 	L = Lin;
 	Yc = Ycin;
+	dm = dmIn;
+	nucleated = nucleatedIn;
 
     Nnod = Nelt+1;
     _Nt = 0;
@@ -174,6 +176,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     nfrags = vector<unsigned>(Ntim,0);
     _numFrag = 0;
     vector<Segment*> segments;
+	for (unsigned j = 0; j < segIn.size(); ++j) segments.push_back(segIn.at(j));
 
     m.assign(Nnod,rho*h*A);
     m[0] = m[0]/2; m[Nnod-1] = m[Nnod-1]/2;
@@ -405,6 +408,10 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     //kill all segments and fragments
     killSegments(segments);
     killFragments(fragment_list);
+
+	//return displacement for testing
+	uIn = u;
+
     return;
 };
 
