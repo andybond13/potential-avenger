@@ -1,13 +1,13 @@
 #makefile
 COMPILER = g++-4
-COMPILER_FLAGS = -g -Wall
+COMPILER_FLAGS = -g -O2
 LIB = 
 SOURCES = $(wildcard *.c) 
 INC = -I .
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = potential-avenger.exe
 
-all: $(SOURCES) $(EXECUTABLE) dSYM
+all: $(SOURCES) $(EXECUTABLE) 
 	
 $(EXECUTABLE): $(OBJECTS) 
 	$(COMPILER) $(LIB) $(OBJECTS) -o $@
@@ -15,11 +15,5 @@ $(EXECUTABLE): $(OBJECTS)
 .c.o:
 	$(COMPILER) $(COMPILER_FLAGS) $(INC) -c $< -o $@
 
-dSYM:
-	dsymutil potential-avenger.exe -o potential-avenger.exe.dSYM
-
-runtest:
-	cd test && python makeAndRunTests.py
-
 clean:
-	rm *.o *.exe; rm -rf *dSYM
+	rm *.o *.exe *.out
