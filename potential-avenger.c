@@ -369,11 +369,12 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
             unsigned send = segments[l]->end();
             //clear Ybar
             segments[l]->YbarmYc = 0.0; 
+			double segZero = calculateZero(segments[l],phiNL); 
             double YbarmYc = 0.0; double Ycavg = 0.0;
             double residu_Y = 0.0; double tangent_Y = 0.0;
             double phimin = 0.0;  double phimax = 0.0;
        		double phiminY = 0.0; double phimaxY = 0.0;
-        	unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l]);
+        	unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 		}
 
         //check enforcement of constraints
@@ -818,6 +819,8 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
         
 		//clear Ybar
 		segments[l]->YbarmYc = 0.0;
+
+		double segZero = calculateZero(segments[l], phiNL);
  
         //skip if all negative
         bool allNeg = true;
@@ -842,9 +845,13 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 
         double YbarmYc = 1.0;    
 		vector<double> residuV, tangentV, phimaxV;
-		unsigned iter_max = 50; 
-        while (err_crit > 1.e-6 && nbiter[i] < iter_max) {
+		unsigned iter_max = 10;
+		unsigned limit = iter_max;
+		unsigned count = 0;
+		double err_tol = 1.e-8;
+        while (err_crit > err_tol && nbiter[i] < iter_max) {
             nbiter[i]++;
+			
 			double residu_Y = 0.0;
 			double tangent_Y = 0.0;
             double phimin = 0.0;
@@ -852,36 +859,31 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
             double phiminY = 0.0;
 			double phimaxY = 0.0;
 			double Ycavg = 0.0; 
-            unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l]);
+            unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+			
 			if (status == 0) goto next;
 			if (YbarmYc < 0 && nbiter[i] == 1) goto next;
 			if (segments[l]->phimin >= lc) goto next;
 
-            int flag = 1; //0 is exterior (damage centered on edge of domain); 1 is interior
-            if (segments[l]->begin() == 0 || segments[l]->end() == Nnod-1) flag = 0;
-
-            if (l == 1 && segments[l]->begin() == 0) flag = 0;
-            if (l == segments.size()-1 && segments[l]->end() == Nnod-1) flag = 0;
-            residu = YbarmYc;
+            residu = residu_Y;
             err_crit = fabs(residu)/Yc ; //Ycavg;
 
-            double tangent = tangent_Y/dm.dval(phimax)  - residu * dm.dp(phimax)/dm.dval(phimax);
-//            double tangent = (tangent_Y + (phiminY-Ycavg)*dm.dp(phimin) )/( dm.dval(phimax)-dm.dval(phimin)) - dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),1) * residu;
-            if (flag) tangent = (tangent_Y + 0.5*(phiminY-Ycavg)*dm.dp(phimin) - 0.5*(phimaxY-Ycavg)*dm.dp(phimax) )/( Ycavg*(dm.dval(phimax)-dm.dval(phimin)) ) - (dm.dp(phimax) - dm.dp(phimin) )/pow(dm.dval(phimax)-dm.dval(phimin),1) * (YbarmYc/Ycavg);
-			if (flag && nbiter.at(i) > iter_max/2) tangent = (tangent_Y )/( dm.dval(phimax) ) - residu * dm.dp(phimax)/dm.dval(phimax);   
-                //double tangent = (tangent_Y + static_cast<double>(flag)*(phimaxY-Yc[iphimax])*dm.dp(phimax)/2.0)/( Yc*(dm.dval(phimax)-dm.dval(phimin)) ) - ((1.0+static_cast<double>(flag)/2.0)*dm.dp(phimax)/pow(dm.dval(phimax)-dm.dval(phimin),2)) * (YbarmYc/Yc);
+            double tangent = tangent_Y;
 //cout << "dphi = " << dphi;
             if (fabs(tangent) <= 1.e-10) {
                 /*err_crit = 0.;*/ dphi = 0.;
             } else {
                 dphi = - residu/tangent;
             }
-			if (err_crit <= 1.e-6) dphi = 0.0;
+			if (err_crit <= err_tol) dphi = 0.0;
             if (isnan(dphi)) {
                 dphi = 0;
                 assert(1==0);                
             }
 
+			residuV.push_back(residu);
+			tangentV.push_back(tangent);
+			phimaxV.push_back(phimax);
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] += dphi;//phiNL_before[j] + dphi;
                 //enforcing limit of level-set motion
@@ -892,7 +894,51 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			checkInTLS(segments,inTLS,inTLSnode);
         	//setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
         } //endwhile
-		assert(nbiter[i] >= iter_max || YbarmYc/Yc <= 1.e-6);
+
+		//Bisection search to finish off convergence calculation
+		bool hasPos;
+		bool hasNeg;
+		if (nbiter[i] >= limit) {
+			hasPos = false;
+			hasNeg = false;
+			for (unsigned j = 0; j < residuV.size(); ++j) {
+				if (residuV[j] > 0) hasPos = true;
+				if (residuV[j] < 0) hasNeg = true;
+				if (hasPos && hasNeg) break;
+			}
+		}
+		if (nbiter[i] >= limit && hasPos && hasNeg) {
+            double residu_Y = 0.0;
+            double tangent_Y = 0.0;
+            double phimin = 0.0;
+            double phimax = 0.0;
+            double phiminY = 0.0;
+            double phimaxY = 0.0;
+            double Ycavg = 0.0;
+			while (count < 10) {
+			count++;
+			//find last positive
+			double rPos = 0.0;
+			double phiPos = 0.0;
+			for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] > 0) {rPos = residuV[j]; phiPos = phimaxV[j];}
+			//find last negative	
+			double rNeg = 0.0;
+			double phiNeg = 0.0;
+			for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] < 0) {rNeg = residuV[j]; phiNeg = phimaxV[j];}
+			assert(rPos > 0.0); assert(rNeg < 0.0);
+			
+			double phimaxMid = 0.5 * (phiPos + phiNeg);
+			dphi = phimaxMid - segments[l]->phipeak; 
+			segments[l]->phipeak += dphi;
+			segments[l]->phimin += dphi;
+            for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
+            unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+			phimaxV.push_back(segments[l]->phipeak);
+			residuV.push_back(residu_Y);
+			}
+		}
+		//end bisection search
+		assert(nbiter[i] < iter_max || count > 0);
 		assert(YbarmYc/Yc <= 1.e-6);
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
@@ -965,7 +1011,7 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
             goto setMin; 
         }
         if (other == index) {
-            segments[index]->xpeak = 0.5 * (x[sbegin] + x[send]);
+		    segments[index]->xpeak = 0.5 * (x[sbegin] + x[send]);
             segments[index]->phipeak = 0.5 * (phiIn[sbegin] + phiIn[send]);
 			other = -1;
             otherSlope = -slope;
@@ -1111,7 +1157,19 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	return;
 }
 
-unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<double>& wg, double& Ycavg, double& YbarmYc, double& residu_Y, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment) {
+double PotentialAvenger::calculateZero (Segment* segment, const vector<double>& phiIn) {
+	double slope = segment->slope;
+	
+	assert(fabs(slope) == 1.0);
+	assert(segment->size() > 0);
+	unsigned sbegin = segment->begin();
+
+	double zero = x[sbegin] - phiIn[sbegin] / slope;
+ 
+	return zero;
+}
+
+unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<double>& wg, double& Ycavg, double& YbarmYc, double& residu_Y, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment, const double& segZero) {
     residu_Y = 0; 
     tangent_Y = 0.0; 
     unsigned loop_residu = 0;
@@ -1140,52 +1198,64 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 			double dist;
 			if (segment->slope == 1) {
 				assert(xpeak >= xmin);
-				assert(xpeak >= xmin - EPS);
 				dist = min( min(xpeak - x[j], x[j+1]-xmin), xpeak-xmin);
 			} else if (segment->slope == -1) {
 				assert(xmin >= xpeak);
-				assert(xmin >= xpeak - EPS);
 				dist = min( min(x[j+1] - xpeak, xmin - x[j]), xmin - xpeak); 
 			} else {
 				assert(1 == 0);
 			}
 			weight *= max(0.0,min(dist,h));
-        
 			if  (phiNL[j] > 0 && phiNL[j+1] <= 0) {
                 delta = h * fabs(phiNL[j]) / (fabs(phiNL[j])+fabs(phiNL[j+1])); //phi>0 portion
+				delta = min(delta,segZero-x[j]);
                 weight = min(weight, delta);//x[j] + delta - max(x[j], xpeak);
 				weight = max(0.0,min(weight,h));
-                philoc = pg[k] * weight;
-                residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
+				
+				philoc = pg[k] * weight;
+				if (segment->slope == -1) philoc = pg[k] * (phiNL[j] - weight) + (1.0 - pg[k]) * phiNL[j];
+				else assert(1 == 0); //not implemented yet - not sure if arises               
+                
+				residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
                 tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
 							 -weight * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
         		phimin = 0.0;
         		iphimin = j;
 
-				if (k == 0) {
-            		if (delta < h || j+1==Nnod) tangent_Y += (0.5 * E * e[j] * e[j] - dH(j,0.0) - Ycv[j])* dm.dp(0.) ;
-            		else tangent_Y += (0.5 * E * e[j+1] * e[j+1] - dH(j,0.0) - Ycv[j])  * dm.dp(0.);
-				}
             	loop_tangent++;
             } else if  (phiNL[j] <= 0 && phiNL[j+1] > 0) {
 
            		delta = h * fabs(phiNL[j+1]) / (fabs(phiNL[j])+fabs(phiNL[j+1])); //phi>0 portion
+				delta = max(delta,x[j+1] - segZero);
                 weight = min(weight,delta);//min(xpeak, x[j+1]) - x[j+1] + delta;
 				weight = max(0.0,min(weight,h));
+
                	philoc = pg[k] * weight;
+				if (segment->slope == 1) philoc = pg[k] * (phiNL[j+1] - weight) + (1.0 - pg[k]) * phiNL[j+1];
+				else assert(1 == 0); //not implemented yet - not sure if arises
+
                 residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
                 tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
 						   - delta * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
        			phimin = 0.0;
        			iphimin = j;
 
-				if (k == 0) {
-               		if (delta < h || j == 0) tangent_Y += (0.5 * E * e[j] * e[j] - dH(j,0.0) - Ycv[j])* dm.dp(0.);  
-              		else tangent_Y += (0.5 * E * e[j-1] * e[j-1] - dH(j,0.0) - Ycv[j])  * dm.dp(0.);
-				}
             	loop_tangent++;
 			} else {
+				assert(weight == h);//assuming this...
 				philoc = pg[k] * phiNL[j] + (1.0 - pg[k]) * phiNL[j+1];
+				if (segment->slope == -1) {
+					weight = min(segZero - x[j], weight);
+					weight = min(max(weight, 0.0), h);
+					philoc = pg[k] * phiNL[j] + (1.0 - pg[k]) * (phiNL[j] - weight);
+	//not sure if this is right thing to do 
+				}
+				if (segment->slope == 1) {
+					weight = min(x[j+1] - segZero, weight);
+					weight = min(max(weight, 0.0), h);
+					philoc = pg[k] * (phiNL[j+1] - weight) + (1.0 - pg[k]) * phiNL[j+1];
+	//not sure if this is right thing to do 
+				}
                	residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
                	tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
 			        			 - weight * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);

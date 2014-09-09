@@ -94,7 +94,7 @@ double dH(const unsigned, const double) const;
 double d2H(const unsigned, const double) const;
 
 //calculate Ybar
-unsigned calculateYbar(const std::vector<double>& pg, const std::vector<double>& wg, double& Ycavg, double& YbarmYc, double& residu_Y, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment);
+unsigned calculateYbar(const std::vector<double>& pg, const std::vector<double>& wg, double& Ycavg, double& YbarmYc, double& residu_Y, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment, const double& segZero);
 
 void calculateDmaxAlt(const std::vector<double>& pg, const std::vector<double>& wg);
 
@@ -119,6 +119,7 @@ void fragmentStats(const std::vector<double>& fragLength);
 void killSegments(std::vector<Segment*>& seg);
 void killFragments(std::vector<Fragment*>& frag);
 void setPeakAll(const std::vector<double>& phiin, std::vector<Segment*>& segments);
+double calculateZero(Segment* segment, const std::vector<double>& phiIN);
 
 };
 
