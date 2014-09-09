@@ -18,7 +18,7 @@ $(EXECUTABLE): $(OBJECTS)
 dSYM:
 	dsymutil potential-avenger.exe -o potential-avenger.exe.dSYM
 
-runtest:
+runtest: clean all
 	cd test && python makeAndRunTests.py
 
 clean:

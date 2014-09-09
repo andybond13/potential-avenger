@@ -23,6 +23,12 @@ for entry in realdirs:
 	print(Fore.RED+"*cleaning "+entry+Fore.RESET)
 	cmd1 = "make -C "+entry+" clean"
 	os.system(cmd1)
+	cmd2 = "ln -s ../damageModel.o "+entry+"/damageModel.o"
+	os.system(cmd2)
+	cmd3 = "ln -s ../objects.o "+entry+"/objects.o"
+	os.system(cmd3)
+	cmd4 = "ln -s ../potential-avenger.o "+entry+"/potential-avenger.o"
+	os.system(cmd4)
 
 #make tests
 for entry in realdirs:
