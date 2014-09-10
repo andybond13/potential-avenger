@@ -361,7 +361,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
         //update gradient for printing
 		calculateLevelSetGradientL(d, gradPhiL);
 		calculateLevelSetGradientNL(d, gradPhiNL);
-
+/*//disabled so that the Ybar calculated is right for the segment it was calculated for (limited boundary). If enabled, this calculates Ybar after the boundary has been moved, potentially making it appear to be less than Yc at this point even with the segment growing. this was not an issue when the boundaries were updated per iteration.
 		//update Ybar after segments redefined
         for (unsigned l = 0; l < segments.size(); ++l) {
             if (segments[l]->size()==0) continue;//segments.erase(segments.begin()+l);
@@ -376,7 +376,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
        		double phiminY = 0.0; double phimaxY = 0.0;
         	unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 		}
-
+*/
         //check enforcement of constraints
         checkConstraints(gradPhiL,gradPhiNL,segments);
 
@@ -1169,6 +1169,14 @@ double PotentialAvenger::calculateZero (Segment* segment, const vector<double>& 
 	return zero;
 }
 
+template <typename T> bool contains (const vector<T>& v, const T& item) {
+	if(std::find(v.begin(), v.end(), item) != v.end()) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
 unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<double>& wg, double& Ycavg, double& YbarmYc, double& residu_Y, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment, const double& segZero) {
     residu_Y = 0; 
     tangent_Y = 0.0; 
@@ -1180,87 +1188,105 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 
     phimin = phiNL[sbegin];
     unsigned iphimin = sbegin;
+	double slope = segment->slope;
+    assert(pg.size() == wg.size());
     for (unsigned j = 0; j <= Nelt; ++j) {
-		if (x[j+1] < min(segment->xpeak,segment->xmin)) continue;
-		if (x[j] > max(segment->xpeak,segment->xmin)) continue;
+//		if (x[j+1] < min(segment->xpeak,segment->xmin)) continue;
+//		if (x[j] > max(segment->xpeak,segment->xmin)) continue;
 
 		if (inTLSnode[j]+inTLSnode[j+1] == 0) continue;
-        assert(pg.size() == wg.size());
+	
+		//determine endpoints to be integrated
+		double xpeak = segment->xpeak;
+		double xmin = segment->xmin;
 
-        for (unsigned k = 0; k < pg.size(); ++k) {
-            double philoc = 0.0;
-			double delta = 0.0;
-			double weight = 1.0;
+		//default
+		double begin = x[j];
+		double phiB = phiNL[j];
+		double end = x[j+1];
+		double phiE = phiNL[j+1];
 
-			double xpeak = segment->xpeak;
-			double xmin = segment->xmin;
-            philoc = pg[k]*phiNL[j] + (1-pg[k]) * phiNL[j+1];
-			double dist;
-			if (segment->slope == 1) {
-				assert(xpeak >= xmin);
-				dist = min( min(xpeak - x[j], x[j+1]-xmin), xpeak-xmin);
-			} else if (segment->slope == -1) {
-				assert(xmin >= xpeak);
-				dist = min( min(x[j+1] - xpeak, xmin - x[j]), xmin - xpeak); 
-			} else {
-				assert(1 == 0);
+		//see if nodes are contained in indices
+		unsigned node1 = contains(segment->indices, static_cast<int>(j) );	
+		unsigned node2 = contains(segment->indices, static_cast<int>(j+1) );
+		if (node1 + node2 == 0) continue;	
+		assert(node1 + node2 > 0);
+
+		//check peak
+		if (slope == -1) {
+			begin = max(begin, xpeak);
+			if (begin == xpeak) phiB = segment->phipeak;
+		}
+		if (slope == 1) {
+			end = min(end, xpeak);
+			if (end == xpeak) phiE = segment->phipeak;
+		}
+
+		//check min
+        if (slope == 1) {
+            begin = max(begin, xmin);
+            if (begin == xmin) phiB = segment->phimin;
+        }
+        if (slope == -1) {
+            end = min(end, xmin);
+            if (end == xmin) phiE = segment->phimin;
+        }
+
+		/*
+		//check real zero
+		if (phiNL[j] * phiNL[j+1] < 0) {
+			if (slope == 1) {
+				assert(phiNL[j] < 0 && phiNL[j+1] > 0);
+				assert(node2 == 1);
+				double delta = h - phiNL[j+1];
+				assert(delta >= 0); assert(delta <= h);
+
+				begin = max(begin, delta);
+				if (begin == delta) phiB = 0.0;
 			}
-			weight *= max(0.0,min(dist,h));
-			if  (phiNL[j] > 0 && phiNL[j+1] <= 0) {
-                delta = h * fabs(phiNL[j]) / (fabs(phiNL[j])+fabs(phiNL[j+1])); //phi>0 portion
-				delta = min(delta,segZero-x[j]);
-                weight = min(weight, delta);//x[j] + delta - max(x[j], xpeak);
-				weight = max(0.0,min(weight,h));
-				
-				philoc = pg[k] * weight;
-				if (segment->slope == -1) philoc = pg[k] * (phiNL[j] - weight) + (1.0 - pg[k]) * phiNL[j];
-				else assert(1 == 0); //not implemented yet - not sure if arises               
-                
-				residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
-                tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
-							 -weight * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
-        		phimin = 0.0;
-        		iphimin = j;
+			if (slope == -1) {
+				assert(phiNL[j] > 0 && phiNL[j+1] < 0);
+				assert(node1 == 1);
+				double delta = phiNL[j];
+				assert(delta >= 0); assert(delta <= h);
 
-            	loop_tangent++;
-            } else if  (phiNL[j] <= 0 && phiNL[j+1] > 0) {
+				end = min(end, delta);
+				if (end == delta) phiE = 0.0;
+			}
+		}
+		*/
 
-           		delta = h * fabs(phiNL[j+1]) / (fabs(phiNL[j])+fabs(phiNL[j+1])); //phi>0 portion
-				delta = max(delta,x[j+1] - segZero);
-                weight = min(weight,delta);//min(xpeak, x[j+1]) - x[j+1] + delta;
-				weight = max(0.0,min(weight,h));
+		//check segzero
+		if (slope == 1) {
+			begin = max(begin, segZero);
+			if (begin == segZero) {
+				assert(node2 == 1);
+				phiB = phiNL[j+1] - phiNL_1[j+1];
+			}	
+		}
+		if (slope == -1) {
+			end = min(end, segZero);
+			if (end == segZero) {
+				assert(node1 == 1);
+				phiE = phiNL[j] - phiNL_1[j];
+			}
+		}
+		
+		double weight = max(min(end - begin, h), 0.0);
+		assert(weight >= 0);
+		assert(weight <= h);
+	
+        for (unsigned k = 0; k < pg.size(); ++k) {
+               	
+			//interpolate between begin and end
+			double philoc = pg[k] * phiB + (1.0 - pg[k]) * phiE;
 
-               	philoc = pg[k] * weight;
-				if (segment->slope == 1) philoc = pg[k] * (phiNL[j+1] - weight) + (1.0 - pg[k]) * phiNL[j+1];
-				else assert(1 == 0); //not implemented yet - not sure if arises
-
-                residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
-                tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
-						   - delta * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
-       			phimin = 0.0;
-       			iphimin = j;
-
-            	loop_tangent++;
-			} else {
-				assert(weight == h);//assuming this...
-				philoc = pg[k] * phiNL[j] + (1.0 - pg[k]) * phiNL[j+1];
-				if (segment->slope == -1) {
-					weight = min(segZero - x[j], weight);
-					weight = min(max(weight, 0.0), h);
-					philoc = pg[k] * phiNL[j] + (1.0 - pg[k]) * (phiNL[j] - weight);
-	//not sure if this is right thing to do 
-				}
-				if (segment->slope == 1) {
-					weight = min(x[j+1] - segZero, weight);
-					weight = min(max(weight, 0.0), h);
-					philoc = pg[k] * (phiNL[j+1] - weight) + (1.0 - pg[k]) * phiNL[j+1];
-	//not sure if this is right thing to do 
-				}
-               	residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
-               	tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
-			        			 - weight * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
-           	}
+			residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
+          	tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
+	        			 - weight * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
+        
            	loop_residu++;
+           	loop_tangent++;
 			Ycavg += Ycv[j] * weight/h;
 			segLength += weight/h;
         
