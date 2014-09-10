@@ -1858,7 +1858,7 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 			else newSegment[2*segphimin+1]->indices.push_back(i);
 		}
         //assert(newSegment[segphimin].slope != 0);
-        phinew[i] = max(phinew[i],phiV[i]);
+  //      phinew[i] = max(phinew[i],phiV[i]);
     }
 
     //delete empty segments

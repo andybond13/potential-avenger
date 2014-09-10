@@ -23,11 +23,23 @@ for entry in realdirs:
 	print(Fore.RED+"*cleaning "+entry+Fore.RESET)
 	cmd1 = "make -C "+entry+" clean"
 	os.system(cmd1)
-	cmd2 = "ln -s ../damageModel.o "+entry+"/damageModel.o"
+	cmd2 = "ln -s ../../damageModel.c "+entry+"/damageModel.c"
 	os.system(cmd2)
-	cmd3 = "ln -s ../objects.o "+entry+"/objects.o"
+	cmd2 = "ln -s ../../damageModel.h "+entry+"/damageModel.h"
+	os.system(cmd2)
+	cmd2 = "ln -s ../../damageModel.o "+entry+"/damageModel.o"
+	os.system(cmd2)
+	cmd3 = "ln -s ../../objects.c "+entry+"/objects.c"
 	os.system(cmd3)
-	cmd4 = "ln -s ../potential-avenger.o "+entry+"/potential-avenger.o"
+	cmd3 = "ln -s ../../objects.h "+entry+"/objects.h"
+	os.system(cmd3)
+	cmd3 = "ln -s ../../objects.o "+entry+"/objects.o"
+	os.system(cmd3)
+	cmd4 = "ln -s ../../potential-avenger.c "+entry+"/potential-avenger.c"
+	os.system(cmd4)
+	cmd4 = "ln -s ../../potential-avenger.h "+entry+"/potential-avenger.h"
+	os.system(cmd4)
+	cmd4 = "ln -s ../../potential-avenger.o "+entry+"/potential-avenger.o"
 	os.system(cmd4)
 
 #make tests
