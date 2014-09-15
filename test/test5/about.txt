@@ -1,0 +1,3 @@
+#test5 about.txt
+
+This test tests the displacement result of the problem of a one-dimensional bar with no initial damage. The element on the left edge is weakened slightly, and nucleation should occur there, making one damage segment. 100 elements, TS refinement = 10.

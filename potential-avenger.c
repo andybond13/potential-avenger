@@ -329,6 +329,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
             }
             phidot.at(i).resize(len);
             phidot.at(i).at(index) = (phiNL[smid] - phiNL_1[smid])/dt;
+            if (numNuc > 0) phidot.at(i).at(index) = min(phidot.at(i).at(index), 1.0); //"hack", but for phidot plot, I don't need to see nucleation as 100000
             if (phidot[i][index] * dt > h*1.01 ) {
                 printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t[i],l,phidot[i][index]*dt/h);
             }
@@ -848,7 +849,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 		unsigned iter_max = 10;
 		unsigned limit = iter_max;
 		unsigned count = 0;
-		double err_tol = 1.e-8;
+		double err_tol = 1.e-6 * dm.dval(h);
         while (err_crit > err_tol && nbiter[i] < iter_max) {
             nbiter[i]++;
 			
@@ -1332,6 +1333,7 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 
                     
     YbarmYc = residu_Y/(dm.dval(phimax)-dm.dval(phimin));
+	if (segment->size() <= 1) YbarmYc = residu_Y/(dm.dval(phimax + 0.5*h)-dm.dval(phimin - 0.5*h));
 	if (residu_Y == 0.0) YbarmYc = 0.0;
 //cout << "Ybar:   residuY = " << residu_Y << "   tangentY = " << tangent_Y << endl;
 //    cout << "segment " <<  " begin = " << sbegin << "  end = " << send << "  |  YbarmYc = " << YbarmYc << "    Yc = " << Yc << "  -> ratio= " << YbarmYc/Yc << endl;
@@ -1861,26 +1863,11 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
   //      phinew[i] = max(phinew[i],phiV[i]);
     }
 
-    //delete empty segments
-    vector<unsigned> delList;
-    for (unsigned i = 0; i < newSegment.size(); ++i) {
-        if (newSegment[i]->size() == 0) {                            //delete empty
-            delList.push_back(i);        
-            continue;
-        }
-
-		assert(newSegment[i]->slope != 0);
-    }
-    while (delList.size() > 0) {
-        unsigned index = delList.back(); 
-        delete newSegment.at(index);
-        newSegment.erase(newSegment.begin() + index);
-        delList.pop_back();
-    }
-
 	//make sure segments don't overlap
 	for (unsigned i = 0; i < newSegment.size(); ++i) {
+		if (newSegment[i]->size() == 0) continue;
 		for (unsigned j = i + 1; j < newSegment.size(); ++j) {
+			if (newSegment[j]->size() == 0) continue;
 			vector<int> endpoints;
 			endpoints.push_back(newSegment[i]->begin());
 			endpoints.push_back(newSegment[i]->end());
@@ -1890,10 +1877,44 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 			int L1 = abs(static_cast<int>(newSegment[i]->begin()) - static_cast<int>(newSegment[i]->end()));	
 			int L2 = abs(static_cast<int>(newSegment[j]->begin()) - static_cast<int>(newSegment[j]->end()));
 			int dist = endpoints.back() - endpoints.front();
-			assert(dist > L1 + L2);	
+			//if overlap, fold segments together
+			//copy indices from shorter segment to taller segment
+			if (dist <= L1 + L2) {
+				assert(newSegment[i]->slope == newSegment[j]->slope);
+				unsigned more, less;
+				if (value_max[i] > value_max[j]) {
+					more = i;
+					less = j;
+				} else {
+					more = j;
+					less = i;
+				}
+				while(!newSegment[less]->indices.empty()) {
+					unsigned index = newSegment[less]->indices.back();
+					newSegment[less]->indices.pop_back();
+					newSegment[more]->indices.push_back(index);
+				}	
+			}
 		}
 
-	}	
+	}//end overlap check
+
+    //delete empty segments
+    vector<unsigned> delList;
+    for (unsigned i = 0; i < newSegment.size(); ++i) {
+        if (newSegment[i]->size() == 0) {                            //delete empty
+            delList.push_back(i);
+            continue;
+        }
+
+        assert(newSegment[i]->slope != 0);
+    }
+    while (delList.size() > 0) {
+        unsigned index = delList.back();
+        delete newSegment.at(index);
+        newSegment.erase(newSegment.begin() + index);
+        delList.pop_back();
+    }	
 
     unsigned tot_indices = 0;
     for (unsigned i = 0; i < newSegment.size(); ++i) {
@@ -1911,38 +1932,6 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 
     if (nucleated == 0) assert(nSegs == newSegment.size());
     
-    //ensure that segment indices are contiguous
-/*
-    bool flag = true;
-    while (flag == true) {
-    flag = false;
-        for (unsigned j = 0; j < newSegment.size(); ++j) {
-            if (newSegment[j]->indices.size() <= 1) continue;
-            // if not contiguous, split
-            if (newSegment[j]->end() != newSegment[j]->begin() + newSegment[j]->indices.size() - 1) {
-				flag = true;
-                int loca = -1;
-                for (unsigned k = 1; k < newSegment[j]->indices.size(); ++k) {
-                    if (newSegment[j]->indices[k] != newSegment[j]->indices[k-1] + 1) {
-						loca = k;
-						break;
-					}
-                }
-				assert(loca > -1);
-				//move loca & later to new segment, erase from original
-				//Segment seg = Segment();
-				//newSegment.push_back(seg);
-				newSegment.push_back(new Segment());
-				for (unsigned k = loca; k < newSegment[j]->indices.size(); ++k) newSegment.back()->indices.push_back(newSegment[j]->indices[k]);
-				setPeak(x,phinew,newSegment,newSegment.size()-1);
-				newSegment.back()->slope = newSegment[j]->slope;
-				newSegment[j]->indices.resize(loca);
-            }
-            assert(newSegment[j]->end() == newSegment[j]->begin() + newSegment[j]->indices.size() - 1);
-        }
-    }
-
-*/
 };  
 
 void PotentialAvenger::printRunInfo() {
