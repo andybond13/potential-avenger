@@ -849,7 +849,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 		unsigned iter_max = 10;
 		unsigned limit = iter_max;
 		unsigned count = 0;
-		double err_tol = 1.e-6 * dm.dval(h);
+		double err_tol = 1.e-6;
         while (err_crit > err_tol && nbiter[i] < iter_max) {
             nbiter[i]++;
 			
@@ -867,7 +867,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			if (segments[l]->phimin >= lc) goto next;
 
             residu = residu_Y;
-            err_crit = fabs(residu)/Yc ; //Ycavg;
+            err_crit = fabs(residu)/Yc/(dm.dval(phimax) - dm.dval(phimin)) ; //Ycavg;
 
             double tangent = tangent_Y;
 //cout << "dphi = " << dphi;
@@ -987,8 +987,8 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 		}
 
 		if (other == index) {
-			segments[index]->xpeak = 0.5 * (x[sbegin] + x[send]);
-			segments[index]->phipeak = 0.5 * (phiIn[sbegin] + phiIn[send]);
+			segments[index]->xpeak = x[send];
+			segments[index]->phipeak = phiIn[send];
 			other = -1;
 			otherSlope = -slope;
 			goto setMin;
@@ -1012,8 +1012,8 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
             goto setMin; 
         }
         if (other == index) {
-		    segments[index]->xpeak = 0.5 * (x[sbegin] + x[send]);
-            segments[index]->phipeak = 0.5 * (phiIn[sbegin] + phiIn[send]);
+		    segments[index]->xpeak = x[sbegin];
+            segments[index]->phipeak = phiIn[sbegin];
 			other = -1;
             otherSlope = -slope;
 			goto setMin;
@@ -1038,6 +1038,14 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	segments[index]->xpeak = xint;	
 	segments[index]->phipeak = phiint;	
 
+	//check bounds -- don't set the max past the relevant boundary
+	if (slope == 1) {
+		segments[index]->xpeak = max(xint, x[sbegin]);
+		if (segments[index]->xpeak == x[sbegin]) segments[index]->phipeak = phiNL[sbegin];
+	} else if (slope == -1) {
+		segments[index]->xpeak = min(xint, x[send]);
+		if (segments[index]->xpeak == x[send]) segments[index]->phipeak = phiNL[send];
+	}	
 	setMin:
 	//set minimum	
 	//find neighboring segment
@@ -1066,8 +1074,8 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 		}
 
         if (other == index) {
-            segments[index]->xmin = 0.5 * (x[sbegin] + x[send]);
-            segments[index]->phimin = 0.5 * (phiIn[sbegin] + phiIn[send]);
+            segments[index]->xmin = x[sbegin];
+            segments[index]->phimin = phiIn[sbegin];
             otherSlope = -slope;
 			other = -1;
 			goto end;
@@ -1097,8 +1105,8 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
         }
 
         if (other == index) {
-            segments[index]->xmin = 0.5 * (x[sbegin] + x[send]);
-            segments[index]->phimin = 0.5 * (phiIn[sbegin] + phiIn[send]);
+            segments[index]->xmin = x[send];
+            segments[index]->phimin = phiIn[send];
             otherSlope = -slope;
 			other = -1;
 			goto end;
@@ -1122,6 +1130,16 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	//save peaks
 	segments[index]->xmin = xint;	
 	segments[index]->phimin = phiint;	
+
+	//check bounds -- don't set the min past the relevant boundary
+	if (slope == 1) {
+    	segments[index]->xmin = min(xint, x[send]);
+	    if (segments[index]->xmin == x[send]) segments[index]->phimin = phiIn[send];
+	} else if (slope == -1) {
+    	segments[index]->xmin = max(xint, x[sbegin]);
+    	if (segments[index]->xmin == x[sbegin]) segments[index]->phimin = phiNL[sbegin];
+	}
+
 
 	end:
 	
@@ -1153,7 +1171,7 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
     assert(segments[index]->xmin >= 0.0);
 
 	double qty = (segments[index]->phipeak-segments[index]->phimin)/(segments[index]->xpeak-segments[index]->xmin);
-	assert( segments[index]->phimin <= segments[index]->phipeak);
+	assert( segments[index]->phipeak - segments[index]->phimin >= -EPS);
 
 	return;
 }
@@ -1261,14 +1279,12 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 		if (slope == 1) {
 			begin = max(begin, segZero);
 			if (begin == segZero) {
-				assert(node2 == 1);
 				phiB = phiNL[j+1] - phiNL_1[j+1];
 			}	
 		}
 		if (slope == -1) {
 			end = min(end, segZero);
 			if (end == segZero) {
-				assert(node1 == 1);
 				phiE = phiNL[j] - phiNL_1[j];
 			}
 		}
@@ -1354,7 +1370,7 @@ if (segLength <= 0.0) {
     cout << " YbarmYc = " << YbarmYc << endl;
 }
 	assert(segLength <= fabs(segment->xpeak - segment->xmin)/h + 1.0e-6);
-	assert(segLength > 0.0);
+	assert(segLength > -EPS);
 	Ycavg /= segLength;
 
     for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send+1,Nelt-1); ++j) {
@@ -1867,6 +1883,7 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 	for (unsigned i = 0; i < newSegment.size(); ++i) {
 		if (newSegment[i]->size() == 0) continue;
 		for (unsigned j = i + 1; j < newSegment.size(); ++j) {
+			if (newSegment[i]->size() == 0) continue;
 			if (newSegment[j]->size() == 0) continue;
 			vector<int> endpoints;
 			endpoints.push_back(newSegment[i]->begin());
@@ -1877,18 +1894,25 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 			int L1 = abs(static_cast<int>(newSegment[i]->begin()) - static_cast<int>(newSegment[i]->end()));	
 			int L2 = abs(static_cast<int>(newSegment[j]->begin()) - static_cast<int>(newSegment[j]->end()));
 			int dist = endpoints.back() - endpoints.front();
+			unsigned ii = (i - (i % 2))/2;
+			unsigned jj = (j - (j % 2))/2;
 			//if overlap, fold segments together
 			//copy indices from shorter segment to taller segment
 			if (dist <= L1 + L2) {
-				assert(newSegment[i]->slope == newSegment[j]->slope);
 				unsigned more, less;
-				if (value_max[i] > value_max[j]) {
-					more = i;
-					less = j;
-				} else {
-					more = j;
-					less = i;
-				}
+				if (newSegment[i]->slope == newSegment[j]->slope) {
+					if (value_max[ii] > value_max[jj]) {
+						more = i;
+						less = j;
+					} else {
+						more = j;
+						less = i;
+					}
+				} else if (newSegment[i]->size() == 1) {
+					more = j; less = i;	
+				} else if (newSegment[j]->size() == 1) {
+					more = i; less = j;	
+				} else assert(1 == 0);	
 				while(!newSegment[less]->indices.empty()) {
 					unsigned index = newSegment[less]->indices.back();
 					newSegment[less]->indices.pop_back();
