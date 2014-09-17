@@ -141,12 +141,7 @@ void Segment::setPeak(const std::vector<double>& x, const std::vector<double>& p
     return;
 }
 
-bool compareSegments(Segment* a, Segment* b) {
-   //sort first by xpeak then by slope 
-   //unsigned a = begin();
-   //unsigned b = in.begin();
-   if (a->xpeak != b->xpeak) return (a->xpeak < b->xpeak);
-   return (a->slope < b->slope);
-       //return (a < b); 
+bool SegmentComparer::operator() (Segment* a, Segment* b) {
+	return (a->begin() < b->begin());
 }
 

@@ -229,7 +229,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     phidot[0].resize(len);
 
     //print data to file
-    vector<double>fragLength = findFragments(dm, phiL, phiNL,nfrags[0],segments);
+    vector<double>fragLength = findFragments(nfrags[0],segments);
     calculateEnergies(0,pg,wg);
     if (printVTK != 0) printVtk(_Nt);
     printFrags(fragLength);
@@ -351,7 +351,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 
         //record number of fragments and quantities per fragment
         fragLength.clear();
-        fragLength = findFragments(dm, phiL, phiNL, nfrags[i],segments);
+        fragLength = findFragments(nfrags[i],segments);
         _numFrag = nfrags[i];
 
         //calculate energies
@@ -1175,6 +1175,7 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 }
 
 double PotentialAvenger::calculateZero (Segment* segment, const vector<double>& phiIn) {
+	//calculate where along this segment the zero is
 	double slope = segment->slope;
 	
 	assert(fabs(slope) == 1.0);
@@ -1184,6 +1185,19 @@ double PotentialAvenger::calculateZero (Segment* segment, const vector<double>& 
 	double zero = x[sbegin] - phiIn[sbegin] / slope;
  
 	return zero;
+}
+
+double PotentialAvenger::calculateTotal (Segment* segment, const vector<double>& phiIn) {
+	//calculate where along this segment total damage (lc) is
+    double slope = segment->slope;
+
+    assert(fabs(slope) == 1.0);
+    assert(segment->size() > 0);
+    unsigned sbegin = segment->begin();
+
+    double total = x[sbegin] - (phiIn[sbegin] - lc) / slope;
+
+    return total;
 }
 
 template <typename T> bool contains (const vector<T>& v, const T& item) {
@@ -1513,7 +1527,7 @@ double zero = 0.0;
     }
 };
 
-vector<double> PotentialAvenger::findFragments(DamageModel& dm, const std::vector<double>& phiLocal, const std::vector<double>& phiNonLocal, unsigned& nfrags, const vector<Segment*>& segments) {
+vector<double> PotentialAvenger::findFragments(unsigned& nfrags, const vector<Segment*>& segments) {
     
     //calculate total number of fragments (removing symmetry simplification)
     vector<double> fragLength = fragmentLength(segments); 

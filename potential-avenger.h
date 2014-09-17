@@ -66,7 +66,7 @@ void setPeak(const std::vector<double>& phi, std::vector<Segment*>& segments, co
 void nucleate(double t, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal);
 
 //findFragments.m
-std::vector<double> findFragments(DamageModel& dm, const std::vector<double>& phiLocal, const std::vector<double>& phiNonLocal, unsigned& nfrags, const std::vector<Segment*>& segments);
+std::vector<double> findFragments(unsigned& nfrags, const std::vector<Segment*>& segments);
 std::vector<double> fragmentLength(const std::vector<Segment*>& segments);
 
 //checkFailureCriteria.m
@@ -120,7 +120,7 @@ void killSegments(std::vector<Segment*>& seg);
 void killFragments(std::vector<Fragment*>& frag);
 void setPeakAll(const std::vector<double>& phiin, std::vector<Segment*>& segments);
 double calculateZero(Segment* segment, const std::vector<double>& phiIN);
-
+double calculateTotal(Segment* segment, const std::vector<double>& phiIN);
 };
 
 

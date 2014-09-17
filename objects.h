@@ -55,5 +55,10 @@ class Fragment{
     std::vector<Segment*> fragSegs; 
 };
 
+class SegmentComparer {
+	public:
+	bool operator() (Segment* a, Segment* b);
+};
+
 #endif
 
