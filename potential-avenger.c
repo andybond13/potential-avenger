@@ -307,10 +307,8 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 		if (numNuc > 0) for (unsigned l = nSegs; l < segments.size(); ++l) segments.at(l)->YbarmYc = 0.0;
 
 		if (numNuc > 0) {
-        	setPeakAll(phiNL,segments); 
-            updateLevelSetNL(i,nbiter,segments,pg,wg);
-        	setPeakAll(phiNL,segments); 
     		analyzeDamage(phiNL,h,segments);
+        	setPeakAll(phiNL,segments); 
         	for (unsigned j = 0; j < Nnod; ++j)  phiNL[j] = max(phiNL[j], phiNL_1[j]);
             checkInTLS(segments,inTLS,inTLSnode);
             calculateStressesNL(pg,wg,segments);
@@ -846,7 +844,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 
         double YbarmYc = 1.0;    
 		vector<double> residuV, tangentV, phimaxV;
-		unsigned iter_max = 10;
+		unsigned iter_max = 20;
 		unsigned limit = iter_max;
 		unsigned count = 0;
 		double err_tol = 1.e-6;

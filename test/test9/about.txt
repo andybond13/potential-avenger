@@ -1,0 +1,3 @@
+#test9 about.txt
+
+This test tests the displacement result of the problem of a one-dimensional bar with no initial damage. Like test6, two elements in the middle are weakened, allowing nucleation to occur there. These weakened elements are closer, so the damage grows together to an extent. 100 elems.
