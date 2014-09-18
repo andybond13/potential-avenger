@@ -1536,171 +1536,67 @@ vector<double> PotentialAvenger::findFragments(unsigned& nfrags, const vector<Se
 
     return fragLength; 
 };
-
-
-vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments) { 
 	
+vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments) {
+	vector<Segment*> segmentList = segments; 
     vector<double> fragLength;
     double powderLength = 0.0;
 
-	//assign indices to fragments
-    int begin = -1;
-    int firstbegin = -1;
-    for (unsigned j = 0; j < Nelt; ++j) {
-		//don't add damage if whole element is damaged, either local or nonlocal
-        if ( (phiL[j] >= lc) || (phiNL[j] >= lc && phiNL[j+1] >= lc && fabs(phiNL[j]-phiNL[j+1]) == h) ) {
-			begin = -1;
-			powderLength += h;
-            continue;
+	for (unsigned j = 0; j < phiL.size(); ++j) {
+		if (phiL[j] > lc) assert(1 == 0); //this has not been implemented yet!
+	}
+
+	sort(segmentList.begin(), segmentList.end(), SegmentComparer());
+
+	for (unsigned j = 0; j < segmentList.size(); ++j) {
+		double segTotal = calculateTotal(segmentList[j], phiNL);
+		if (j == 0) assert(segmentList[j]->begin() == 0);
+
+		double xpeak = min(max(segmentList[j]->xpeak, 0.0), L);
+		double xmin = min(max(segmentList[j]->xmin, 0.0), L);
+		double rawLength = fabs(xpeak - xmin);
+
+		if (fragLength.size() == 0) fragLength.push_back(0.0);
+
+		if (segmentList[j]->slope == 1) {
+			double solid = min(segTotal - xmin, xpeak - xmin); 
+			double powder = max(xpeak - segTotal, 0.0);
+            assert(fabs(solid + powder - rawLength) < EPS);
+			fragLength.back() += solid;
+			if (fragLength.back() > 0.0) fragLength.push_back(0.0);
+			powderLength += powder;
 		}
+        if (segmentList[j]->slope == -1) {
+            double solid = min(xmin - segTotal, xmin - xpeak);
+            double powder = max(segTotal - xpeak, 0.0);
+            assert(fabs(solid + powder - rawLength) < EPS);
+			fragLength.back() += solid;
+			powderLength += powder;
+        }
 
-	    double solidLength = h;	
-		
-		//element partially failing (simple)
-		if ( (phiNL[j] >= lc || phiNL[j+1] >= lc) && ( fabs(phiNL[j]-phiNL[j+1]) == h) ) {
-			if (phiNL[j] < phiNL[j+1]) {
-				double delta = lc - phiNL[j];
-				assert(delta >= 0); assert(delta <= h);
-			    fragLength.back() += delta;	
-			    powderLength += (h - delta);
-			    
-			    solidLength = 0.0;
-			    begin = -1;
-			} else if (phiNL[j] > phiNL[j+1]) {
-                double delta = phiNL[j] - lc;
-                assert(delta >= 0); assert(delta <= h);
-                powderLength += delta;
-                
-                fragLength.push_back(0.0); //end old fragment, find length for new one
-                solidLength = h - delta;
-                begin = j;
-			} else {
-				assert(1==0);
-			}
+	}
+
+	//now account for symmetry
+	powderLength *= 2.0;
+	unsigned count = fragLength.size();
+	for (unsigned j = 0; j < count; ++j) {
+		if (j == 0) {
+			//check to see if broken in middle
+			if (phiNL[0] >= lc) fragLength.push_back(fragLength[j]);
+			else 				fragLength[j] *= 2.0;
+		} else {
+			fragLength.push_back(fragLength[j]);
 		}
-
-		//element partially failing (hat)
-		if ( fabs(phiNL[j]-phiNL[j+1]) < h + EPS && (0.5 * (phiNL[j] + phiNL[j+1]) >= lc - 0.5 * h) ) {
-			bool hasPeak = false;
-			bool hasMin = false;
-			//check for peaks -> hasPeak (false = antipeak, true = peak)
-			for (unsigned l = 0; l < segments.size(); ++l) {
-				if ( (segments[l]->xpeak >= x[j]) && (segments[l]->xpeak <= x[j+1]) ) hasPeak = true;
-				if ( (segments[l]->xmin >= x[j]) && (segments[l]->xmin <= x[j+1]) ) hasMin = true;
-			}
-			if (hasPeak && hasMin) {
-				//could be slope = -1, 1, -1 or 1, -1 , 1
-
-				//TODO
-				solidLength = h;
-
-			
-			}
-
-            if (hasPeak && !hasMin) {
-				//peak
-				solidLength = 0.0;
-				double delta = 0.5 * (phiNL[j+1] - phiNL[j] + h);
-				assert(delta >= -EPS); assert(delta <= h+EPS);
-				if (phiNL[j] + delta < lc) {
-					solidLength = h;	
-					continue;
-				}
-				assert(phiNL[j] + delta >= lc);
-				//check for & deal with intersection on first slope
-				double s  = lc - phiNL[j];
-                assert(s <= delta);
-				if (s > 0) {
-					fragLength.back() += s;
-					powderLength += (delta - s);
-				} else {
-					powderLength += delta;
-				}
-				begin = -1;
-
-				//check for & deal with intersection on second slope
-                 s  = phiNL[j] + delta - lc;
-                assert(s >= 0);
-                if (s < (h-delta)) {
-                    powderLength += s;
-			        fragLength.push_back(0.0);
-					begin = j;
-					solidLength = (h-delta)-s;
-                } else {
-                    powderLength += h-delta;
-                }
+	}
 
 
-			}
-			if (hasMin && !hasPeak) {
-				//anti-peak
-				double delta = 0.5 * (phiNL[j] - phiNL[j+1] + h);
-        	    if (phiNL[j] < lc && phiNL[j+1] < lc) {
-					solidLength = h;
-					continue;
-				}
-				if (fabs(delta) < 2*EPS) delta = 0.0;
-				if (fabs(delta-h) < 2*EPS) delta = h;
-				assert(delta >= 0); assert(delta <= h);
-				solidLength = 0.0;
-                if (phiNL[j] - delta <= lc) {
-        	        assert(phiNL[j] >= lc || phiNL[j+1] >= lc);
-    	            //check for & deal with intersection on first slope
-	                double s  = phiNL[j] - lc;
-                	assert(s <= delta);
-            	    if (s > 0) {
-        	            powderLength += s;
-						begin = -1;
-	                    solidLength = (delta - s);
-                	} else {
-            	        fragLength.back() += delta;
-        	        }
-                
-    	            //check for & deal with intersection on second slope
-	                s  = lc - phiNL[j] + delta;
-                	assert(s >= 0);
-            	    if (s < (h-delta)) {
-						solidLength += s;
-						fragLength.push_back(solidLength);
-						solidLength = 0.0;
-						powderLength += (h-delta) - s;
-						begin = -1;
-            	    } else {
-        	            solidLength += (h-delta);
-						begin = j;
-	                }
-				} else {
-					//whole thing failed
-					powderLength += h;
-					begin = -1;		
-				}
-			}//end peak/antipeak
-		} //end hat
-
-		if (firstbegin == -1) firstbegin = j;
-		if (begin == -1) {
-			begin = j;
-			fragLength.push_back(0.0);
-		}
-		assert(solidLength <= h); assert(solidLength >= 0.0);
-		fragLength.back() += solidLength;
-	
-    }
-
-	//copy for negative side
-    unsigned numFL = fragLength.size();
-	//double length of first fragment if it was intact (firstbegin)
-    if (firstbegin == 0 && numFL > 0) fragLength[0] *= 2.0;
-	else fragLength.push_back(fragLength[0]);
-    for (unsigned j = 1; j < numFL; ++j) fragLength.push_back(fragLength[j]);
-	powderLength *= 2;
-
-	assert( (fragLength.size() == numFL*2 && firstbegin != 0) || (fragLength.size() == numFL*2-1 && firstbegin == 0) );
+	if (segmentList.size() == 0) fragLength.push_back(2.0 * L);	
 
 	//length check
     double sumfrag = 0.0;
 	for (unsigned j = 0; j < fragLength.size(); ++j) 	sumfrag += fragLength[j];
-	assert(fabs(sumfrag + powderLength - L * 2.0) < EPS*Nelt );
+	if (fabs(sumfrag + powderLength - L * 2.0) >= 0.001 * h) cout << " sumfrag = " << sumfrag << "     powder = " << powderLength << "    total = " << sumfrag + powderLength << "    diff = " << sumfrag+powderLength-2*L << endl;
+	assert(fabs(sumfrag + powderLength - L * 2.0) < 0.001 * h );
 
 	return fragLength;
 };
