@@ -915,25 +915,25 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
             double phimaxY = 0.0;
             double Ycavg = 0.0;
 			while (count < 10) {
-			count++;
-			//find last positive
-			double rPos = 0.0;
-			double phiPos = 0.0;
-			for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] > 0) {rPos = residuV[j]; phiPos = phimaxV[j];}
-			//find last negative	
-			double rNeg = 0.0;
-			double phiNeg = 0.0;
-			for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] < 0) {rNeg = residuV[j]; phiNeg = phimaxV[j];}
-			assert(rPos > 0.0); assert(rNeg < 0.0);
-			
-			double phimaxMid = 0.5 * (phiPos + phiNeg);
-			dphi = phimaxMid - segments[l]->phipeak; 
-			segments[l]->phipeak += dphi;
-			segments[l]->phimin += dphi;
-            for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-            unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
-			phimaxV.push_back(segments[l]->phipeak);
-			residuV.push_back(residu_Y);
+				count++;
+				//find last positive
+				double rPos = 0.0;
+				double phiPos = 0.0;
+				for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] > 0) {rPos = residuV[j]; phiPos = phimaxV[j];}
+				//find last negative	
+				double rNeg = 0.0;
+				double phiNeg = 0.0;
+				for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] < 0) {rNeg = residuV[j]; phiNeg = phimaxV[j];}
+				assert(rPos > 0.0); assert(rNeg < 0.0);
+				
+				double phimaxMid = 0.5 * (phiPos + phiNeg);
+				dphi = phimaxMid - segments[l]->phipeak; 
+				segments[l]->phipeak += dphi;
+				segments[l]->phimin += dphi;
+   	         	for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
+    	        unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+				phimaxV.push_back(segments[l]->phipeak);
+				residuV.push_back(residu_Y);
 			}
 		}
 		//end bisection search
