@@ -970,7 +970,7 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	if (slope == 1) {
 		for (unsigned i = 0; i < segments.size(); ++i) {
 			int qty = segments.at(i)->begin() - send;
-			if (qty < dist && qty > 0 && segments[i]->slope < 1) {
+			if (qty < dist && qty > 0) {
 				dist = qty;
 				other = i;
 				otherSlope = static_cast<double>(segments[i]->slope);
@@ -984,19 +984,24 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 			goto setMin;
 		}
 
-		if (other == index) {
-			segments[index]->xpeak = x[send];
-			segments[index]->phipeak = phiIn[send];
-			other = -1;
-			otherSlope = -slope;
+		//if (usually right after nucleation), the nearest neighbor has same slope
+		//This is for the case when you have two consecutive segments with the same slope.
+		//  The second segment isn't far enough the first to have indices in the opposite slope, so it was deleted.
+		//  It sets the xmin/xpeak to be just the average of the two segment endpoints
+		//   and the phimin/phipeak to be the extrapolation of the two segment endpoints & slope.
+		if (otherSlope == slope && other != index) {
+			double dist = x[segments[other]->begin()] - x[send];
+			segments[index]->xpeak = x[send] + 0.5 * dist;
+			segments[index]->phipeak = phiIn[send] + 0.5 * dist;
 			goto setMin;
 		}
+
 		assert(other != index);
 		assert(otherSlope != slope);
 	} else {
         for (unsigned i = 0; i < segments.size(); ++i) {
 			int qty = sbegin - segments.at(i)->end();
-            if (qty < dist && qty > 0 && segments[i]->slope > -1) {
+            if (qty < dist && qty > 0) {
                 dist = qty;
                 other = i;
 				otherSlope = static_cast<double>(segments[i]->slope);
@@ -1009,14 +1014,16 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
             segments[index]->phipeak = phiIn[sbegin];
             goto setMin; 
         }
-        if (other == index) {
-		    segments[index]->xpeak = x[sbegin];
-            segments[index]->phipeak = phiIn[sbegin];
-			other = -1;
-            otherSlope = -slope;
-			goto setMin;
+
+        //if (usually right after nucleation), the nearest neighbor has same slope
+		//(same explanation)
+        if (otherSlope == slope && other != index) {
+            double dist = x[sbegin] - x[segments[other]->end()];
+            segments[index]->xpeak = x[sbegin] - 0.5 * dist;
+            segments[index]->phipeak = phiIn[sbegin] + 0.5 * dist;
+            goto setMin;
         }
-	
+
         assert(other != index);
         assert(otherSlope != slope);
 	}
@@ -1053,7 +1060,7 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	if (slope == 1) {
 		for (unsigned i = 0; i < segments.size(); ++i) {
 			int qty = sbegin - segments.at(i)->end();
-			if (qty < dist && qty > 0 && segments[i]->slope < 1) {
+			if (qty < dist && qty > 0) {
 				dist = qty;
 				other = i;
 				otherSlope = static_cast<double>(segments[i]->slope);
@@ -1071,12 +1078,13 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 			goto end;
 		}
 
-        if (other == index) {
-            segments[index]->xmin = x[sbegin];
-            segments[index]->phimin = phiIn[sbegin];
-            otherSlope = -slope;
-			other = -1;
-			goto end;
+        //if (usually right after nucleation), the nearest neighbor has same slope
+		//(same explanation)
+        if (otherSlope == slope && other != index) {
+            double dist = x[sbegin] - x[segments[other]->end()];
+            segments[index]->xmin = x[sbegin] - 0.5 * dist;
+            segments[index]->phimin = phiIn[sbegin] - 0.5 * dist;
+            goto end;
         }
 
 		assert(other != index);
@@ -1084,7 +1092,7 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	} else {
         for (unsigned i = 0; i < segments.size(); ++i) {
 			int qty = segments.at(i)->begin() - send;
-            if (qty < dist && qty > 0 && segments[i]->slope > -1) {
+            if (qty < dist && qty > 0) {
                 dist = qty;
                 other = i;
 				otherSlope = static_cast<double>(segments[i]->slope);
@@ -1102,14 +1110,15 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
             goto end; 
         }
 
-        if (other == index) {
-            segments[index]->xmin = x[send];
-            segments[index]->phimin = phiIn[send];
-            otherSlope = -slope;
-			other = -1;
-			goto end;
+        //if (usually right after nucleation), the nearest neighbor has same slope
+		//(same explanation)
+        if (otherSlope == slope && other != index) {
+            double dist = x[segments[other]->begin()] - x[send];
+            segments[index]->xmin = x[send] + 0.5 * dist;
+            segments[index]->phimin = phiIn[send] - 0.5 * dist;
+            goto end;
         }
-	
+
         assert(other != index);
         assert(otherSlope != slope);
 	}
