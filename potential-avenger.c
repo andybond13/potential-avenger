@@ -1581,6 +1581,8 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 			double solid = min(segTotal - xmin, xpeak - xmin); 
 			double powder = max(xpeak - segTotal, 0.0);
             assert(fabs(solid + powder - rawLength) < EPS);
+			assert(solid >= 0.0);
+			assert(powder >= 0.0);
 			fragLength.back() += solid;
 			if (fragLength.back() > 0.0) fragLength.push_back(0.0);
 			powderLength += powder;
@@ -1589,6 +1591,8 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
             double solid = min(xmin - segTotal, xmin - xpeak);
             double powder = max(segTotal - xpeak, 0.0);
             assert(fabs(solid + powder - rawLength) < EPS);
+			assert(solid >= 0.0);
+			assert(powder >= 0.0);
 			fragLength.back() += solid;
 			powderLength += powder;
         }
