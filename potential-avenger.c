@@ -1578,6 +1578,9 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 		if (fragLength.size() == 0) fragLength.push_back(0.0);
 
 		if (segmentList[j]->slope == 1) {
+			//only consider segtotal if is in the right place
+			segTotal = max(segTotal, xmin);
+
 			double solid = min(segTotal - xmin, xpeak - xmin); 
 			double powder = max(xpeak - segTotal, 0.0);
             assert(fabs(solid + powder - rawLength) < EPS);
@@ -1588,6 +1591,9 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 			powderLength += powder;
 		}
         if (segmentList[j]->slope == -1) {
+			//only consider segtotal if is in the right place
+			segTotal = min(segTotal, xmin);
+
             double solid = min(xmin - segTotal, xmin - xpeak);
             double powder = max(segTotal - xpeak, 0.0);
             assert(fabs(solid + powder - rawLength) < EPS);
