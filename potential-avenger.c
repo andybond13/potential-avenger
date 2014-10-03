@@ -737,7 +737,10 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
             Y[j] -= d_quad_wt[j][k] * dH(j,dloc);
         }
 
-		if (Ybar[j] == 0.0) Ybar[j] = Y[j]/Yc;
+		if (Ybar[j] == 0.0) {
+			if (d[j] == 1 && inTLS[j] == 1) Ybar[j] = 0.0;  //not sure why some are excluded
+			else Ybar[j] = Y[j]/Yc;
+		}
 
         if (inTLS[j] == 1) dissip_energy_TLS += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
         if (inTLS[j] == 0) dissip_energy_local += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
@@ -905,7 +908,9 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 				if (residuV[j] < 0) hasNeg = true;
 				if (hasPos && hasNeg) break;
 			}
-		}
+        } else {
+            hasNeg = false; hasPos = false;
+        }
 		if (nbiter[i] >= limit && hasPos && hasNeg) {
             double residu_Y = 0.0;
             double tangent_Y = 0.0;
@@ -1139,14 +1144,16 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	segments[index]->phimin = phiint;	
 
 	//check bounds -- don't set the min past the relevant boundary
+	//min forced to abide by peak so that the element length (xpeak-xmin)*slope is >= 0
 	if (slope == 1) {
-    	segments[index]->xmin = min(xint, x[send]);
+    	segments[index]->xmin = min(segments[index]->xpeak, min(xint, x[send]));
 	    if (segments[index]->xmin == x[send]) segments[index]->phimin = phiIn[send];
+	    if (segments[index]->xmin == segments[index]->xpeak) segments[index]->phimin = segments[index]->phipeak;
 	} else if (slope == -1) {
-    	segments[index]->xmin = max(xint, x[sbegin]);
+    	segments[index]->xmin = max(segments[index]->xpeak, max(xint, x[sbegin]));
     	if (segments[index]->xmin == x[sbegin]) segments[index]->phimin = phiNL[sbegin];
+    	if (segments[index]->xmin == segments[index]->xpeak) segments[index]->phimin = segments[index]->phipeak;
 	}
-
 
 	end:
 	
@@ -1178,7 +1185,9 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
     assert(segments[index]->xmin >= 0.0);
 
 	double qty = (segments[index]->phipeak-segments[index]->phimin)/(segments[index]->xpeak-segments[index]->xmin);
-	assert( segments[index]->phipeak - segments[index]->phimin >= -EPS);
+
+	assert( segments[index]->phipeak - segments[index]->phimin >= 0);
+	assert( segments[index]->slope * (segments[index]->xpeak - segments[index]->xmin) >= 0);
 
 	return;
 }
@@ -1273,7 +1282,7 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
         }
 
 		/*
-		//check real zero
+		//check real zero -- no need!
 		if (phiNL[j] * phiNL[j+1] < 0) {
 			if (slope == 1) {
 				assert(phiNL[j] < 0 && phiNL[j+1] > 0);
@@ -1371,6 +1380,7 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
                     
     YbarmYc = residu_Y/(dm.dval(phimax)-dm.dval(phimin));
 	if (segment->size() <= 1) YbarmYc = residu_Y/(dm.dval(phimax + 0.5*h)-dm.dval(phimin - 0.5*h));
+    if (dm.dval(phimin) == 1 && dm.dval(phimax) == 1) YbarmYc = 0.0;
 	if (residu_Y == 0.0) YbarmYc = 0.0;
 //cout << "Ybar:   residuY = " << residu_Y << "   tangentY = " << tangent_Y << endl;
 //    cout << "segment " <<  " begin = " << sbegin << "  end = " << send << "  |  YbarmYc = " << YbarmYc << "    Yc = " << Yc << "  -> ratio= " << YbarmYc/Yc << endl;
