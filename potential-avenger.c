@@ -1204,7 +1204,7 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
     }
     if (segments[index]->xmin > L) {
         double qty = segments[index]->xmin - L;
-        segments[index]->xmin = 0;
+        segments[index]->xmin = L;
         segments[index]->phimin -= slope * qty;
     }
 
