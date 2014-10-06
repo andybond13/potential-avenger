@@ -703,7 +703,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 		d[j] = dee;
         s[j] = E * (1.0 - dee) * e[j];
 		assert(d[j] >= d_1[j]);
-		if (d[j] < 1.0) assert(0.5 * E * e[j] * e[j] - dH(j,d[j]) <= Ycv[j] * (1 + EPS));
+		if (d[j] < 1.0) assert(0.5 * E * e[j] * e[j] - dH(j,d[j]) <= Ycv[j] * (1 + 1.0e-6));
 		
         if (fullCompression) {
             //this makes compression fully in contact no matter what the damage
@@ -919,7 +919,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
             double phiminY = 0.0;
             double phimaxY = 0.0;
             double Ycavg = 0.0;
-			while (count < 10) {
+			while (count < iter_max) {
 				count++;
 				//find last positive
 				double rPos = 0.0;
@@ -940,10 +940,40 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 				phimaxV.push_back(segments[l]->phipeak);
 				residuV.push_back(residu_Y);
 			}
+		} //end bisection search
+
+
+		//finish with linear interpolation
+		if (nbiter[i] >= limit) {
+            double residu_Y = 0.0;
+            double tangent_Y = 0.0;
+            double phimin = 0.0;
+            double phimax = 0.0;
+            double phiminY = 0.0;
+            double phimaxY = 0.0;
+            double Ycavg = 0.0;
+			unsigned size = residuV.size();
+			assert(size >= 2);
+            double rPos = residuV[size-1];
+            double phiPos = phimaxV[size-1];
+            double rNeg = residuV[size-2];
+            double phiNeg = phimaxV[size-2];
+
+			if (phiPos - phiNeg != 0) {
+				double m = (rPos - rNeg) / (phiPos - phiNeg);
+				dphi = phiNeg - rNeg/m - segments[l]->phipeak;
+                segments[l]->phipeak += dphi;
+                segments[l]->phimin += dphi;
+                for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
+    	        unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+				phimaxV.push_back(segments[l]->phipeak);
+				residuV.push_back(residu_Y);
+			}
 		}
-		//end bisection search
+
 		assert(nbiter[i] < iter_max || count > 0);
 		assert(YbarmYc/Yc <= 1.e-6);
+	assert(YbarmYc/Yc <= 1.e-6);
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
             }
@@ -1605,6 +1635,9 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 
 	}
 
+	//eliminate zero-length fragment due to lots of powder near right end
+	if (fragLength.size() > 0) if (fragLength.back() == 0.0) fragLength.pop_back();
+	
 	//now account for symmetry
 	powderLength *= 2.0;
 	unsigned count = fragLength.size();
@@ -1787,7 +1820,6 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 		newSegment[2*i+1]->YbarmYc = YbarmYc[i];
 		newSegment[2*i+1]->slope = -1;
 	}
-    vector<unsigned> removeList;
 
     //re-define segments.indices and phi
     vector<double> phinew = vector<double>(phiV.size(),-1);
@@ -1884,7 +1916,7 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
         if (newSegment[i]->phipeak> 0 ) assert(newSegment[i]->indices.size() <= x.size());
     }
 
-    assert(tot_indices + removeList.size() == x.size());
+    assert(tot_indices == x.size());
 
     //return phinew as phi
     for (unsigned i = 0; i < phiV.size(); ++i) {
