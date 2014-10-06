@@ -148,7 +148,6 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     energy = vector<double>(Nelt,0);
     Y = vector<double>(Nelt,0);
     Ybar = vector<double>(Nelt,0);
-    Ycv = vector<double>(Nelt,Yc);
     strain_energy = 0.0;
     kinetic_energy = 0.0;
     dissip_energy = 0.0;
