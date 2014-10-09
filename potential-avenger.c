@@ -66,7 +66,7 @@ PotentialAvenger::~PotentialAvenger(){
 
 };
 
-unsigned min(const vector<unsigned> in) {
+template <typename T> T min(const vector<T>& in) {
     assert(in.size() > 0);
     unsigned min = in[0];
     for (unsigned i = 1; i < in.size(); ++i) {
@@ -75,7 +75,7 @@ unsigned min(const vector<unsigned> in) {
     return min;
 }
 
-unsigned max(const vector<unsigned> in) {
+template <typename T> T max(const vector<T>& in) {
     assert(in.size() > 0);
     unsigned max = in[0];
     for (unsigned i = 1; i < in.size(); ++i) {
@@ -986,7 +986,8 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 }
 
 void PotentialAvenger::setPeakAll(const vector<double>&phiIn, vector<Segment*>& segments) {
-	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(phiIn,segments,l); //segments[l].phipeak += dphi; 
+    sort(segments.begin(),segments.end(),SegmentComparer());
+	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(phiIn,segments,l); //segments[l].phipeak += dphi;
 	return;
 }
 
@@ -995,14 +996,17 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	unsigned send = segments[index]->end();	
 	double slope = static_cast<double>(segments[index]->slope);
 	double a1,a2,b1,b2,xint,phiint;
-
-	//set peak	
+    unsigned search = 1;
+    
+    //set peak
 	//find neighboring segment
 	unsigned other = index;
 	int dist = Nelt;
 	double otherSlope = 0.0;
 	if (slope == 1) {
-		for (unsigned i = 0; i < segments.size(); ++i) {
+        unsigned low = (unsigned)max(0, (int)index);
+        unsigned high = (unsigned)min((int)segments.size()-1, int(index+search));
+        for (unsigned i = low; i <= high; ++i) {
 			int qty = segments.at(i)->begin() - send;
 			if (qty < dist && qty > 0) {
 				dist = qty;
@@ -1033,7 +1037,9 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 		assert(other != index);
 		assert(otherSlope != slope);
 	} else {
-        for (unsigned i = 0; i < segments.size(); ++i) {
+        unsigned low = (unsigned)max(0, (int)index-(int)search);
+        unsigned high = (unsigned)min((int)segments.size()-1, (int)index);
+        for (unsigned i = low; i <= high; ++i) {
 			int qty = sbegin - segments.at(i)->end();
             if (qty < dist && qty > 0) {
                 dist = qty;
@@ -1092,7 +1098,9 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 	dist = Nelt;
 	otherSlope = 0.0;
 	if (slope == 1) {
-		for (unsigned i = 0; i < segments.size(); ++i) {
+        unsigned low = (unsigned)max(0, (int)index-(int)search);
+        unsigned high = (unsigned)min((int)segments.size()-1, (int)index);
+        for (unsigned i = low; i <= high; ++i) {
 			int qty = sbegin - segments.at(i)->end();
 			if (qty < dist && qty > 0) {
 				dist = qty;
@@ -1124,7 +1132,9 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 		assert(other != index);
 		assert(otherSlope != slope);
 	} else {
-        for (unsigned i = 0; i < segments.size(); ++i) {
+        unsigned low = (unsigned)max(0, (int)index);
+        unsigned high = min((int)segments.size()-1, (int)index+(int)search);
+        for (unsigned i = low; i <= high; ++i) {
 			int qty = segments.at(i)->begin() - send;
             if (qty < dist && qty > 0) {
                 dist = qty;
@@ -1909,6 +1919,7 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
     }	
 
     unsigned tot_indices = 0;
+    sort(newSegment.begin(),newSegment.end(),SegmentComparer());
     for (unsigned i = 0; i < newSegment.size(); ++i) {
         setPeak(phinew,newSegment,i);
         tot_indices += newSegment[i]->size();
