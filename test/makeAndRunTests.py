@@ -2,8 +2,14 @@
 
 import os
 from subprocess import call
+import re
 import sys 
 from colorama import init, Fore, Back, Style
+
+def natural_sort(l):
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
+    return sorted(l, key = alphanum_key)
 
 init()
 
@@ -17,6 +23,7 @@ for entry in dirs:
 	if "test" in entry:
 		count += 1
 		realdirs.append(entry)
+realdirs = natural_sort(realdirs)
 
 #make tests clean
 for entry in realdirs:
