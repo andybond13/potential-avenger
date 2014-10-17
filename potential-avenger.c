@@ -1510,7 +1510,8 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc,
 				if (loc+1 < static_cast<int>(Nelt)) phiNL[loc+1] = max(phicrit,phiL[loc+1]);
 				if (loc+1 < static_cast<int>(Nnod)) delta = 0.5 * (h + phiNL[loc+1] - phiNL[loc]);
 				else delta = 0.0;	
-			assert(delta >= 0.0); assert(delta <= h);
+				delta = max(min(delta, h), 0.0);
+				assert(delta >= 0.0); assert(delta <= h);
     	    } else {
                 assert(loc <= static_cast<int>(Nnod)-1);
                 double phicrit = max(phiL[loc],phiNL[loc]);
@@ -1522,7 +1523,8 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc,
                 if (loc-1 >= 0) phiNL[loc-1] = max(phicrit,phiL[loc-1]);
 				if (loc-1 >= 0) delta = 0.5 * (-h + phiNL[loc] - phiNL[loc-1]);
 				else delta = 0.0;
-			assert(delta <= 0.0); assert(delta >= -h);
+				delta = max(min(delta, 0.0), -h);
+				assert(delta <= 0.0); assert(delta >= -h);
         	}
              //create two new segments
              if (xnuc[j] > x[0]) {
