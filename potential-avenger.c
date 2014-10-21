@@ -1548,9 +1548,9 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc,
 	        if (gradient == 1.0) {
 				assert(loc >= 1);
 				double phicrit = phiNL[loc];
-				if (loc > 0) phicrit = max(phicrit,phiL[loc-1]); 
+				phicrit = max(phicrit,phiL[loc-1]); 
 				if (loc < static_cast<int>(Nnod)) phicrit = max(phicrit,phiL[loc]); 
-				if (loc > 0) phiNL[loc-1] = max(max(phicrit-h,phiL[loc-1]),phiNL[loc-1]);
+				phiNL[loc-1] = max(max(phicrit-h,phiL[loc-1]),phiNL[loc-1]);
 				phiNL[loc] = phicrit;
 				if (loc+1 < static_cast<int>(Nnod)) phiNL[loc+1] = phicrit;
 				if (loc+1 < static_cast<int>(Nelt)) phiNL[loc+1] = max(phicrit,phiL[loc+1]);
