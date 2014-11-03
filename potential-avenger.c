@@ -448,8 +448,8 @@ void PotentialAvenger::calculateLevelSetGradientNL( const vector<double>& dV, ve
     assert(gradientPhi.size() > 4);
     //gradientPhi[0] = (phiNL[1]-phiNL[0])/(h); //first-order boundary difference
     gradientPhi[0] = (-phiNL[2]+4*phiNL[1]-3*phiNL[0])/(2*h); //second-order boundary difference
-    //gradientPhi[Nnod-1] = (phiNL[Nnod-1]-phiNL[Nnod-2])/(h); //first-order boundary difference
-    gradientPhi[Nnod-1] = (3*phiNL[Nnod-1]-4*phiNL[Nnod-2]+phiNL[Nnod-3])/(2*h); //second-order boundary difference
+    gradientPhi[Nnod-1] = (phiNL[Nnod-1]-phiNL[Nnod-2])/(h); //first-order boundary difference
+    //gradientPhi[Nnod-1] = (3*phiNL[Nnod-1]-4*phiNL[Nnod-2]+phiNL[Nnod-3])/(2*h); //second-order boundary difference
     for (unsigned i = 1; i < Nnod-1; ++i) {
        double phiM = 0.5 * (phiNL[i] + phiNL[i+1]); 
        double phiM1 = 0.5* (phiNL[i] + phiNL[i-1]);
