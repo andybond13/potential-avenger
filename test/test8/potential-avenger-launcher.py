@@ -17,12 +17,13 @@ strain_rate = 0.25 #1 #100.0
 printVTK = 0
 oneAtATime = 0
 minOpenDist = 0.00
-alpha = 0.25		#hardening coefficient bounded by 0 & 1: 0-very brittle, 1-very plastic
+alpha = 0.25	#(SQRT) hardening coefficient bounded by 0 & 1: 0-very brittle, 1-very plastic; (LIN) 
+sm = "SQRT"         #SQRT - match sqrt cohesive TSL or LIN - match linear cohesive TSL
 localOnly = 0	#1 for local only, 0 for local/non-local
 visualizeCracks = 0 #1 to visualize cracks (elements disappear when d = 1)
 fullCompression = 0 #0: s = E*e*(1-d) always, 1: s=E*e*(1-d) in tension, s=E*e in compression
 
 #run program
-command = "./potential-avenger.exe %f %f %f %u %f %u %u %u %f %f %u %u %u" % (strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks,fullCompression)
+command = "./potential-avenger.exe %f %f %f %u %f %u %u %u %f %f %u %u %u %s" % (strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks,fullCompression, sm)
 print command
 os.system(command)

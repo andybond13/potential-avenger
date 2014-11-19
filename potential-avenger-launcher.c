@@ -18,7 +18,7 @@ void writeDisplacements (const vector<double>& uIn, const double& L) {
 }
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 14);
+    assert(argc == 15);
  
 	//read input from potential-avenger-launcher.py
     double strain_rate = atof(argv[1]);
@@ -34,9 +34,10 @@ int main(int argc, const char* argv[]) {
     unsigned localOnly = atoi(argv[11]);
     unsigned visualizeCracks = atoi(argv[12]);
     unsigned fullCompression = atoi(argv[13]);
+    string sm = string(argv[14]);
     string path = ".";
  
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, sm, path);
 
 	//"serious" hard-coded input
 	unsigned Nnod = Nelt + 1;
