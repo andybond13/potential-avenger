@@ -9,7 +9,7 @@
 
 using namespace std;
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& in13, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
@@ -23,6 +23,7 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     localOnly = in10;
     visualizeCracks = in11;
     fullCompression = in12;
+	sm = in13;
     _path = path + "/results";
 
     _numFrag = 0;    
@@ -127,6 +128,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 	Yc = Ycin;
 	dm = dmIn;
 	nucleated = nucleatedIn;
+	assert(sm == "LIN" || sm == "SQRT"); if (sm == "LIN") assert(dm.getType() == 2);
 
     Nnod = Nelt+1;
     _Nt = 0;
