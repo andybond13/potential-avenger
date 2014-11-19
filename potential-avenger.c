@@ -786,16 +786,41 @@ std::string convertInt(unsigned number) {
     return returnvalue;
 }
 
-double PotentialAvenger::H (const unsigned j, const double dee) { 
-    return (Ycv[j] * alpha * dee * dee)/(1.0 - alpha * dee);
+double PotentialAvenger::H (const unsigned j, const double dee) {
+	if (sm == "SQRT") return (Ycv[j] * alpha * dee * dee)/(1.0 - alpha * dee);
+	if (sm == "LIN") {
+		double phi = dm.phi(dee);
+		double p = phi/lc;	
+		double H = dee / pow(1.0 - p + alpha * p * p,2);	
+		return Ycv[j]*(H-dee);
+	}
+	return 0;
 }    
 
-double PotentialAvenger::dH (const unsigned j, const double dee) const { 
-    return (Ycv[j] * alpha * dee) * (2.0 - alpha * dee)/pow(1.0 - alpha * dee,2);
+double PotentialAvenger::dH (const unsigned j, const double dee) { 
+    if (sm == "SQRT") return (Ycv[j] * alpha * dee) * (2.0 - alpha * dee)/pow(1.0 - alpha * dee,2);
+    if (sm == "LIN") {
+		double phi = dm.phi(dee);
+		double p = phi/lc;	
+		double dHdp = 2*(alpha * pow(p, 3) - 3*alpha * pow(p,2) + 1) / pow(alpha * pow(p,2) - p + 1, 3);
+		double dpdd = 0.5 / (1.0 - p); 
+		double dH = dHdp * dpdd;
+        return Ycv[j] * (dH - 1);
+    }  
+	return 0;
 }    
 
-double PotentialAvenger::d2H (const unsigned j, const double dee) const { 
-    return (2.0 * Ycv[j] * alpha) /pow(1.0 - alpha * dee,3);
+double PotentialAvenger::d2H (const unsigned j, const double dee) { 
+    if (sm == "SQRT") return (2.0 * Ycv[j] * alpha) /pow(1.0 - alpha * dee,3);
+    if (sm == "LIN") {
+		double phi = dm.phi(dee);
+		double p = phi/lc;
+		double d2Hdp2 = (4*pow(alpha,2)*pow(p,5) - 18*pow(alpha,2)*pow(p,4) + 12*pow(alpha,2)*pow(p,3) - alpha*pow(p,4) + 4*alpha*pow(p,3) + 10*alpha*pow(p,2) - 12*alpha*p - 4*p + 4)/(pow(p - 1,2)*pow(alpha*pow(p,2) - p + 1,4));
+		double dpdd = 0.5 / (1.0 - p); 
+		double d2H = d2Hdp2 * dpdd;
+        return Ycv[j] * d2H;
+    }  
+	return 0;
 }    
 
 void PotentialAvenger::updateLevelSetL( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg, const unsigned& j) {

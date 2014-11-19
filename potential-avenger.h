@@ -91,8 +91,8 @@ void updateLevelSetL(const unsigned& i, std::vector<unsigned>& nbiter, std::vect
 void updateLevelSetNL(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
 
 double H(const unsigned, const double);
-double dH(const unsigned, const double) const;
-double d2H(const unsigned, const double) const;
+double dH(const unsigned, const double);
+double d2H(const unsigned, const double);
 
 //calculate Ybar
 unsigned calculateYbar(const std::vector<double>& pg, const std::vector<double>& wg, double& Ycavg, double& YbarmYc, double& residu_Y, double& tangent_Y, double& phimin, double& phimax, double& phiminY, double& phimaxY, unsigned& nbiter, const unsigned sbegin, const unsigned send, Segment* segment, const double& segZero);
