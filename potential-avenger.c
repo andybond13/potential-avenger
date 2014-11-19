@@ -729,8 +729,11 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
     dissip_energy = 0.0;
     kinetic_energy = 0.0;
 
+    vector<double> simpleY = vector<double>(Nelt,0.0);
+
     for (unsigned j = 0; j < Nelt; ++j) {
         Y[j] = 0.5 * E * e[j] * e[j];
+        simpleY[j] = 0.5 * E * e[j] * e[j];
         for (unsigned k = 0; k < d_quad_wt[j].size(); ++k) {
             double dloc = d_quad[j][k];
             Y[j] -= d_quad_wt[j][k] * dH(j,dloc);
@@ -741,8 +744,8 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
 			else Ybar[j] = Y[j]/Yc;
 		}
 
-        if (inTLS[j] == 1) dissip_energy_TLS += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
-        if (inTLS[j] == 0) dissip_energy_local += h * A * Y[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
+        if (inTLS[j] == 1) dissip_energy_TLS += h * A * simpleY[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
+        if (inTLS[j] == 0) dissip_energy_local += h * A * simpleY[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
         if (i > 0) {
             kinetic_energy += 0.5 * h * A * rho * 0.5 *
                                 ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
