@@ -112,6 +112,8 @@ template <typename T> double sgn(T val) {
 
 double printable (double in) {
     double limit = numeric_limits<double>::epsilon();
+	assert(isnan(in) == 0);
+	assert(isinf(in) == 0);
 	if (fabs(in) < limit) return 0.0;
     else return in;
 }
@@ -502,7 +504,7 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 
     //for local: check that Y <= Yc
 	if (alpha > 0) {
-    	for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0 && d[j] < 1.0) assert( Y[j]/Ycv[j] < 1.0 + EPS*Nnod);
+    	for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0 && d[j] < 1.0) assert( Y[j]/Ycv[j] < 1.0 + 1.0e-8);
 	}
 
 	//for non-local: check that Ybar <= Yc
