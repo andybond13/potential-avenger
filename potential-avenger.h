@@ -53,7 +53,7 @@ std::vector<double> gradPhiL;
 std::vector<double> gradPhiNL;
 std::vector<double> gradPhiNLelem;
 unsigned nucleated;
-std::vector<std::vector<double> > d_quad,d_quad_wt, phidot;
+std::vector<std::vector<double> > d_quad,d_quad_wt,d_quad_phi,phidot;
 double EPS,alfa;
 
 void printRunInfo();

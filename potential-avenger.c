@@ -144,6 +144,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     d = vector<double>(Nelt,0);
     d_quad = vector<vector<double> >(Nelt);
     d_quad_wt = vector<vector<double> >(Nelt);
+    d_quad_phi = vector<vector<double> >(Nelt);
     d_1 = vector<double>(Nelt,0);
     d_max = vector<double>(Nelt,0);
     s = vector<double>(Nelt,0.0);
@@ -535,6 +536,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 		
         d_quad[j].clear();
 		d_quad_wt[j].clear();
+		d_quad_phi[j].clear();
 	    s[j] = 0;
 	    d[j] = 0;
    		if ((inTLS[j] == 1 && localOnly == 0) || alpha ==0.0 ) { 	//in TLS: use non-local damage model
@@ -553,6 +555,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 					double philoc1 = pg[k] * phiNL[j] + (1-pg[k]) * (phiLocal);
 					d_quad[j].push_back(dm.dval(philoc1));
 					d_quad_wt[j].push_back(wg[k] * delta/h);
+					d_quad_phi[j].push_back(philoc1);
 					dloc[k] = dm.dval(philoc1);
 					d[j] += wg[k] * dloc[k] * delta/h;
             	    s[j] += wg[k] * (1.0-dloc[k]) * E * e[j] * delta/h;
@@ -561,6 +564,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 				s[j] += (h-delta)/h * (1.0-dm.dval(phiLocal)) * E * e[j];
 				d_quad[j].push_back(dm.dval(phiLocal)); 
 				d_quad_wt[j].push_back(1.0 * (h-delta)/h );
+				d_quad_phi[j].push_back(phiLocal); 
                 
 
 			} else if (inTLSnode[j] == 0 && inTLSnode[j+1] == 1) {
@@ -572,6 +576,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
                     double philoc1 = pg[k] * phiLocal + (1-pg[k]) * (phiNL[j+1]);
                     d_quad[j].push_back(dm.dval(philoc1));
                     d_quad_wt[j].push_back(wg[k] * (h-delta)/h);
+                    d_quad_phi[j].push_back(philoc1);
                     dloc[k] = dm.dval(philoc1);
                     d[j] += wg[k] * dloc[k] * (h-delta)/h;
                     s[j] += wg[k] * (1.0-dloc[k]) * E * e[j] * (h-delta)/h;
@@ -581,6 +586,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 				s[j] += delta/h * (1.0 - dm.dval(phiLocal)) * E * e[j];
                 d_quad[j].push_back(dm.dval(phiLocal));
                 d_quad_wt[j].push_back(1.0 * delta/h );
+                d_quad_phi[j].push_back(phiLocal);
 //cout << " added 0 " << dm.dval(phiLocal) <<  " ( " << (h-delta)/h << " ) " << endl;
 
     	    } else if (phiNL[j] > 0  && phiNL[j+1] > 0) {
@@ -606,11 +612,14 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 						d_quad[j].push_back(dm.dval(philoc2));
 						d_quad_wt[j].push_back(delta/h * wg[k]);
 						d_quad_wt[j].push_back((h-delta)/h * wg[k]);
+						d_quad_phi[j].push_back(philoc1);
+						d_quad_phi[j].push_back(philoc2);
             	        dloc[k] = delta/h * dm.dval(philoc1) + (h-delta)/h * dm.dval(philoc2);
                 	} else {
 	                    double philoc = pg[k] * phiNL[j] + (1-pg[k]) * phiNL[j+1];
 						d_quad[j].push_back(dm.dval(philoc));
 						d_quad_wt[j].push_back(wg[k]);
+						d_quad_phi[j].push_back(philoc);
     	                dloc[k] = dm.dval(philoc);
         	        }
             	    s[j] += wg[k] * (1-dloc[k]) * E * e[j];
@@ -621,6 +630,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
         	    s[j] = E * e[j];
 			    d_quad[j].push_back(0.0);
 				d_quad_wt[j].push_back(1.0); 
+			    d_quad_phi[j].push_back(0.5 * (phiNL[j] + phiNL[j+1]));  //this isn't quite true, but it doesn't matter
 	        } else if  (phiNL[j] > 0 && phiNL[j+1] <= 0) {
 				//left side positive, right side negative
     	        double delta = fabs(phiNL[j]) / (fabs(phiNL[j])+fabs(phiNL[j+1]));
@@ -632,9 +642,11 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 			        d[j] += wg[k] * dloc[k] * delta; //+ ( 1-delta) * 0.0
 					d_quad[j].push_back(dm.dval(philoc));
 					d_quad_wt[j].push_back(wg[k] * delta);
+					d_quad_phi[j].push_back(philoc);
         	    }
 				d_quad[j].push_back(0.0);
 				d_quad_wt[j].push_back( 1-delta );
+				d_quad_phi[j].push_back(0.0);  	//this isn't quite true, but it doesn't matter
             	s[j] = delta *  sloc +  (1-delta) * E * e[j];
 	        } else if (phiNL[j] <= 0 && phiNL[j+1] > 0) {
 				//left side negative, right side positive
@@ -647,9 +659,11 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 			        d[j] += wg[k] * dloc[k] * delta; //+ ( 1-delta) * 0.0
 					d_quad[j].push_back(dm.dval(philoc));
 					d_quad_wt[j].push_back(wg[k] * delta); 
+					d_quad_phi[j].push_back(philoc);
         	    }
 				d_quad[j].push_back(0.0);
 				d_quad_wt[j].push_back( 1-delta );
+				d_quad_phi[j].push_back(0.0);  	//this isn't quite true, but it doesn't matter
             	s[j] = delta *  sloc +  (1-delta) * E * e[j];
 	        }
 
@@ -666,8 +680,8 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 		}
 
         assert(d_quad[j].size() == d_quad_wt[j].size());
+        assert(d_quad[j].size() == d_quad_phi[j].size());
         assert(fabs(sum(d_quad_wt[j]) - 1.0) < 1.0e-6);
-        assert(d_quad[j].size() == d_quad_wt[j].size());
 	}
 
 	return;
@@ -690,9 +704,31 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 		double dee = d_1[j];
 //cout << " dee before = " << dee << "  phiL before = " << phiL[j] << endl;
 		//check to see if damage needs to be recalculated; (local model so no need to use quadrature for dH)
-		if (0.5 * E * e[j] * e[j] > dH(j,d_1[j]) + Ycv[j]) 	{
-			double factor = sqrt(2.0 * Ycv[j] / (E * e[j] * e[j]) ); 
-			dee = (1.0 - fabs(factor)) / alpha;
+		if (0.5 * E * e[j] * e[j] > dH(j,dm.phi(d_1[j])) + Ycv[j]) 	{
+			if (sm == "SQRT") {
+				double factor = sqrt(2.0 * Ycv[j] / (E * e[j] * e[j]) ); 
+				dee = (1.0 - fabs(factor)) / alpha;
+			}
+			if (sm == "LIN") {
+				double qty = (E * e[j] * e[j]) / (2.0 * Ycv[j]);
+				//begin NR
+				double R = dH(j,dm.phi(dee)) - qty;
+				double err_tol = 1e-8;
+				unsigned nrCount = 0;
+				unsigned nrLimit = 20;
+				while (fabs(R) > err_tol && nrCount < nrLimit) {
+					double p = dm.phi(dee)/lc;
+					nrCount++;
+					dee = dm.dval(p*lc);
+					R = dH(j,p*lc)/Ycv[j] + 1 - qty;
+					double T = d2H(j,p*lc)/Ycv[j];
+					if (p == 1.0) {R = 0.0; T = 1.0;}
+					dee += -(R/T);
+					dee = max(min(dee, 1.0), 0.0);
+				}
+				if (nrCount == nrLimit) dee = 1.0;
+				//end NR				
+			}
             if (dee < 0.0) //E * e[j] * e[j] < 2.0 * Yc) 
 				dee = 0.0;			//not damaged if Y < Yc
             if (dee > 1.0)
@@ -704,7 +740,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 		d[j] = dee;
         s[j] = E * (1.0 - dee) * e[j];
 		assert(d[j] >= d_1[j]);
-		if (d[j] < 1.0) assert(0.5 * E * e[j] * e[j] - dH(j,d[j]) <= Ycv[j] * (1 + 1.0e-6));
+		if (d[j] < 1.0) assert(0.5 * E * e[j] * e[j] - dH(j,dm.phi(d[j])) <= Ycv[j] * (1 + 1.0e-6));
 		
         if (fullCompression) {
             //this makes compression fully in contact no matter what the damage
@@ -713,9 +749,11 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 
 		d_quad[j].clear();
 		d_quad_wt[j].clear();
+		d_quad_phi[j].clear();
 
 		d_quad[j].push_back(d[j]);
         d_quad_wt[j].push_back(1.0);
+		d_quad_phi[j].push_back(dm.phi(d[j]));
 
 /*		if (d[j] > 0.0) {
 			printf("elem = %u, 0.5Eee = %6.3e, dH = %6.3e, Ycv = %6.3e\n",j, 0.5 * E * e[j] * e[j], dH(j,d_1[j]), Ycv[j]);
@@ -738,8 +776,15 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
         simpleY[j] = 0.5 * E * e[j] * e[j];
         for (unsigned k = 0; k < d_quad_wt[j].size(); ++k) {
             double dloc = d_quad[j][k];
-            Y[j] -= d_quad_wt[j][k] * dH(j,dloc);
+            Y[j] -= d_quad_wt[j][k] * dH(j,d_quad_phi[j][k]);
         }
+	
+		//this inf/nan checking is necessary with the LIN softening model
+		//since dH can have a zero-denominator or be 0/0 if phi >= lc	
+		if (isnan(Y[j]) == 1) Y[j] = Ycv[j];
+		assert(isnan(Y[j]) == 0);
+		if (isinf(Y[j]) == 1) Y[j] = Ycv[j];
+		assert(isinf(Y[j]) == 0);
 
 		if (Ybar[j] == 0.0) {
 			if (d[j] == 1 && inTLS[j] == 1) Ybar[j] = 0.0;  //not sure why some are excluded
@@ -786,10 +831,10 @@ std::string convertInt(unsigned number) {
     return returnvalue;
 }
 
-double PotentialAvenger::H (const unsigned j, const double dee) {
+double PotentialAvenger::H (const unsigned j, const double phi) {
+	double dee = dm.dval(phi);
 	if (sm == "SQRT") return (Ycv[j] * alpha * dee * dee)/(1.0 - alpha * dee);
 	if (sm == "LIN") {
-		double phi = dm.phi(dee);
 		double p = phi/lc;	
 		double H = dee / pow(1.0 - p + alpha * p * p,2);	
 		return Ycv[j]*(H-dee);
@@ -797,10 +842,10 @@ double PotentialAvenger::H (const unsigned j, const double dee) {
 	return 0;
 }    
 
-double PotentialAvenger::dH (const unsigned j, const double dee) { 
+double PotentialAvenger::dH (const unsigned j, const double phi) { 
+	double dee = dm.dval(phi);
     if (sm == "SQRT") return (Ycv[j] * alpha * dee) * (2.0 - alpha * dee)/pow(1.0 - alpha * dee,2);
     if (sm == "LIN") {
-		double phi = dm.phi(dee);
 		double p = phi/lc;	
 		double dHdp = 2*(alpha * pow(p, 3) - 3*alpha * pow(p,2) + 1) / pow(alpha * pow(p,2) - p + 1, 3);
 		double dpdd = 0.5 / (1.0 - p); 
@@ -810,10 +855,10 @@ double PotentialAvenger::dH (const unsigned j, const double dee) {
 	return 0;
 }    
 
-double PotentialAvenger::d2H (const unsigned j, const double dee) { 
+double PotentialAvenger::d2H (const unsigned j, const double phi) {
+	double dee = dm.dval(phi); 
     if (sm == "SQRT") return (2.0 * Ycv[j] * alpha) /pow(1.0 - alpha * dee,3);
     if (sm == "LIN") {
-		double phi = dm.phi(dee);
 		double p = phi/lc;
 		double d2Hdp2 = (4*pow(alpha,2)*pow(p,5) - 18*pow(alpha,2)*pow(p,4) + 12*pow(alpha,2)*pow(p,3) - alpha*pow(p,4) + 4*alpha*pow(p,3) + 10*alpha*pow(p,2) - 12*alpha*p - 4*p + 4)/(pow(p - 1,2)*pow(alpha*pow(p,2) - p + 1,4));
 		double dpdd = 0.5 / (1.0 - p); 
@@ -910,6 +955,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
             if (isnan(dphi)) {
                 dphi = 0;
                 assert(1==0);                
+                //if (sm == "SQRT") assert(1==0);                
             }
 			dphi = min(dphi, 10*h);
 
@@ -1038,9 +1084,20 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 				}
 			}			
 			if (haveZero == false) {
-				segments[l]->phipeak -= (double)niter*dphi;
-				segments[l]->phimin -= (double)niter*dphi;
-				for (unsigned j = sbegin; j <=send; ++j) phiNL[j] -= (double)niter*dphi;
+				//if still no zero, pick the minimum value of the residual and go with that
+				double minResidu = residuV.front();
+				double setpeak = phimaxV.front();
+				for (unsigned j = 0; j < residuV.size(); ++j) {
+					if (residuV[j] < minResidu) {
+						minResidu = residuV[j];
+						setpeak = phimaxV[j];
+					}
+				}
+			
+				double endpeak = segments[l]->phipeak;	
+				segments[l]->phipeak += setpeak - endpeak;
+				segments[l]->phimin += setpeak - endpeak;
+				for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += setpeak - endpeak;
 			}
 			unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 
@@ -1442,10 +1499,9 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
                	
 			//interpolate between begin and end
 			double philoc = pg[k] * phiB + (1.0 - pg[k]) * phiE;
-
-			residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dp(philoc);
-          	tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,dm.dval(philoc)) - Ycv[j]) * dm.dpp(philoc)
-	        			 - weight * wg[k] * d2H(j,dm.dval(philoc)) * pow(dm.dp(philoc),2);
+			residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,philoc) - Ycv[j]) * dm.dp(philoc);
+          	tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,philoc) - Ycv[j]) * dm.dpp(philoc)
+	        			 - weight * wg[k] * d2H(j,philoc) * pow(dm.dp(philoc),2);
         
            	loop_residu++;
            	loop_tangent++;
@@ -1475,20 +1531,20 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
     if (phimin == phimax) return 0;
 
     phimaxY = 0.0;
-    if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimax, dm.dval(phimax)); //1/2*s(i,Nelt)*e(i,Nelt);
+    if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimax, phimax); //1/2*s(i,Nelt)*e(i,Nelt);
     else {
         phimaxY = 0.5*E*pow(e[iphimax],2);// 1/2*s(i,iphimax)*e(i,iphimax);
         for (unsigned k = 0; k < d_quad_wt[iphimax].size(); ++k) {
-	        phimaxY -= d_quad_wt[iphimax][k] * dH(iphimax,d_quad[iphimax][k]);
+	        phimaxY -= d_quad_wt[iphimax][k] * dH(iphimax,d_quad_phi[iphimax][k]);
         }
     }
 
     phiminY = 0.0;
-    if (iphimin == Nnod-1) phiminY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimin, dm.dval(phimin)); //1/2*s(i,Nelt)*e(i,Nelt);
+    if (iphimin == Nnod-1) phiminY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimin, phimin); //1/2*s(i,Nelt)*e(i,Nelt);
     else {
 		phiminY = 0.5*E*pow(e[iphimin],2);// 1/2*s(i,iphimax)*e(i,iphimax);
         for (unsigned k = 0; k < d_quad_wt[iphimin].size(); ++k) {
-            phiminY -= d_quad_wt[iphimin][k] * dH(iphimin,d_quad[iphimin][k]);
+            phiminY -= d_quad_wt[iphimin][k] * dH(iphimin,d_quad_phi[iphimin][k]);
         }
     }
 

@@ -61,7 +61,6 @@ int main(int argc, const char* argv[]) {
 	vector<double> xIn = vector<double>(Nnod,0);
 	vector<double> uIn = vector<double>(Nnod,0);
 	vector<double> vIn = vector<double>(Nnod,0);
-	YcvIn[0] *= (1.0 - alfa);
 	vector<double> YcvIn = vector<double>(Nelt, Yc);
 	DamageModel dm = DamageModel("Parabolic", lc);
 
