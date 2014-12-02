@@ -786,6 +786,7 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
 		if (isnan(Y[j]) == 1) Y[j] = Ycv[j];
 		assert(isnan(Y[j]) == 0);
 		if (isinf(Y[j]) == 1) Y[j] = Ycv[j];
+		if (isinf(Y[j]) == -1) Y[j] = Ycv[j];
 		assert(isinf(Y[j]) == 0);
 
 		if (Ybar[j] == 0.0) {
