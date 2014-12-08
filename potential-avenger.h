@@ -69,6 +69,7 @@ void nucleate(double t, const std::vector<double>& xnuc, const std::vector<doubl
 //findFragments.m
 std::vector<double> findFragments(unsigned& nfrags, const std::vector<Segment*>& segments);
 std::vector<double> fragmentLength(const std::vector<Segment*>& segments);
+std::vector<double> localFragmentLength();
 
 //checkFailureCriteria.m
 unsigned checkFailureCriteria(unsigned ts, std::vector<double>& criterion, std::string elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue, std::vector<Segment*>& newSegment, std::vector<unsigned>& nbiter, const std::vector<double>& pg, const std::vector<double>& wg);

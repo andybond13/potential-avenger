@@ -1726,12 +1726,44 @@ vector<double> PotentialAvenger::findFragments(unsigned& nfrags, const vector<Se
     
     //calculate total number of fragments (removing symmetry simplification)
     vector<double> fragLength = fragmentLength(segments); 
+    vector<double> localFragLength = localFragmentLength(); 
     nfrags = fragLength.size();
     fragmentStats(fragLength);   
 
     return fragLength; 
 };
 	
+vector<double> PotentialAvenger::localFragmentLength() {
+    vector<double> fragLength;
+
+	double begin = 0.0;
+	double end = 0.0;
+	double powder = 0.0;
+	for (unsigned j = 0; j < Nelt; ++j) {
+		if (d[j] == 1) {
+			end = x[j];
+			double length = end-begin;
+			if (length > 0) fragLength.push_back(length);
+			begin = x[j+1];
+			powder += h;
+		}
+
+	}
+	end = x[Nelt];
+	double length = end-begin; 
+	if (length > 0) fragLength.push_back(length);
+
+	//duplicate
+	powder *= 2.0;
+	unsigned count = fragLength.size();
+	for (unsigned j = 0; j < count; ++j) {
+		if (j == 0 && d[j] < 1) fragLength[j] *= 2.0; 
+		else fragLength.push_back(fragLength[j]);
+	}
+	cout << " local # fragments = " << fragLength.size() << "    min = " << min(fragLength) << "    total = " << sum(fragLength) << "    powder = " << powder << endl;
+	return fragLength;
+}
+
 vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments) {
 	vector<Segment*> segmentList = segments; 
     vector<double> fragLength;
