@@ -1760,8 +1760,10 @@ vector<double> PotentialAvenger::localFragmentLength() {
 		if (j == 0 && d[j] < 1) fragLength[j] *= 2.0; 
 		else fragLength.push_back(fragLength[j]);
 	}
-	cout << " local # fragments = " << fragLength.size() << "    min = " << min(fragLength) << "    total = " << sum(fragLength) << "    powder = " << powder << endl;
-	return fragLength;
+
+    if (fragLength.size() > 0) cout << " local # fragments = " << fragLength.size() << "    min = " << min(fragLength) << "    total = " << sum(fragLength) << "    powder = " << powder << endl;
+    else cout << " local # fragments = " << fragLength.size() << "    total = " << sum(fragLength) << "    powder = " << powder << endl;
+    return fragLength;
 }
 
 vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments) {
