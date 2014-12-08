@@ -1820,13 +1820,9 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 	powderLength *= 2.0;
 	unsigned count = fragLength.size();
 	for (unsigned j = 0; j < count; ++j) {
-		if (j == 0) {
-			//check to see if broken in middle
-			if (phiNL[0] >= lc) fragLength.push_back(fragLength[j]);
-			else 				fragLength[j] *= 2.0;
-		} else {
-			fragLength.push_back(fragLength[j]);
-		}
+		//check to see if broken in middle
+		if (j == 0 && phiNL[0] < lc) fragLength[j] *= 2.0;
+		else fragLength.push_back(fragLength[j]);
 	}
 
 
