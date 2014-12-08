@@ -69,18 +69,18 @@ PotentialAvenger::~PotentialAvenger(){
 
 template <typename T> T min(const vector<T>& in) {
     assert(in.size() > 0);
-    unsigned min = in[0];
+    T min = in[0];
     for (unsigned i = 1; i < in.size(); ++i) {
-        if (in[i] < min) min = in[1];
+        if (in[i] < min) min = in[i];
     }
     return min;
 }
 
 template <typename T> T max(const vector<T>& in) {
     assert(in.size() > 0);
-    unsigned max = in[0];
+    T max = in[0];
     for (unsigned i = 1; i < in.size(); ++i) {
-        if (in[i] > max) max = in[1];
+        if (in[i] > max) max = in[i];
     }
     return max;
 }
