@@ -743,6 +743,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 					if (p == 1.0) {R = 0.0; T = 1.0;}
 					dee += -(R/T);
 					dee = max(min(dee, 1.0), 0.0);
+				if (dee == 1.0) dee = 0.9999;
 				}
 				if (nrCount == nrLimit) dee = 1.0;
 				//end NR				
