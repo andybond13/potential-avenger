@@ -793,7 +793,7 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
         Y[j] = 0.5 * E * e[j] * e[j];
         simpleY[j] = 0.5 * E * e[j] * e[j];
         for (unsigned k = 0; k < d_quad_wt[j].size(); ++k) {
-            double dloc = d_quad[j][k];
+			//double dloc = d_quad[j][k];
             Y[j] -= d_quad_wt[j][k] * dH(j,d_quad_phi[j][k]);
         }
 	
@@ -1031,7 +1031,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 				segments[l]->phipeak += dphi;
 				segments[l]->phimin += dphi;
    	         	for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-    	        unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 				phimaxV.push_back(segments[l]->phipeak);
 				residuV.push_back(residu_Y);
 			}
@@ -1060,7 +1060,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
                 segments[l]->phipeak += dphi;
                 segments[l]->phimin += dphi;
                 for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-    	        unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 				phimaxV.push_back(segments[l]->phipeak);
 				residuV.push_back(residu_Y);
 				count++;
@@ -1092,7 +1092,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
             	segments[l]->phipeak += dphi;
                 segments[l]->phimin += dphi;
                 for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-                unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+                calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
                 phimaxV.push_back(segments[l]->phipeak);
                 residuV.push_back(residu_Y);
 				if (residu_Y <= 0){
@@ -1118,7 +1118,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 				segments[l]->phimin += setpeak - endpeak;
 				for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += setpeak - endpeak;
 			}
-			unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+			calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 
 
 		}//end crawl
