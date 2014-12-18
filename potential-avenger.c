@@ -618,11 +618,27 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 						d_quad_phi[j].push_back(philoc2);
             	        dloc[k] = delta/h * dm.dval(philoc1) + (h-delta)/h * dm.dval(philoc2);
                 	} else {
-	                    double philoc = pg[k] * phiNL[j] + (1-pg[k]) * phiNL[j+1];
-						d_quad[j].push_back(dm.dval(philoc));
-						d_quad_wt[j].push_back(wg[k]);
-						d_quad_phi[j].push_back(philoc);
-    	                dloc[k] = dm.dval(philoc);
+						//no peak/anti-peak
+						//can integrate better if crosses lc; essentially subdividing into two, doubling quadrature points
+						if ((phiNL[j] >= lc && phiNL[j+1] < lc) || (phiNL[j] < lc && phiNL[j+1] >= lc) ) {
+							double delta = fabs(phiNL[j] - lc);
+							delta = min(delta, h); delta = max(0.0, delta);
+	                        double philoc1 = pg[k] * phiNL[j] + (1-pg[k]) * lc;
+	                        double philoc2 = pg[k] * lc + (1-pg[k]) * phiNL[j+1];
+    	                    d_quad[j].push_back(dm.dval(philoc1));
+    	                    d_quad[j].push_back(dm.dval(philoc2));
+        	                d_quad_wt[j].push_back(wg[k] * delta/h);
+        	                d_quad_wt[j].push_back(wg[k] * (h-delta)/h);
+            	            d_quad_phi[j].push_back(philoc1);
+            	            d_quad_phi[j].push_back(philoc2);
+            	        	dloc[k] = delta/h * dm.dval(philoc1) + (h-delta)/h * dm.dval(philoc2);
+						} else {
+	                        double philoc = pg[k] * phiNL[j] + (1-pg[k]) * phiNL[j+1];
+    	                    d_quad[j].push_back(dm.dval(philoc));
+        	                d_quad_wt[j].push_back(wg[k]);
+            	            d_quad_phi[j].push_back(philoc);
+                	        dloc[k] = dm.dval(philoc);
+						}
         	        }
             	    s[j] += wg[k] * (1-dloc[k]) * E * e[j];
 					d[j] += wg[k] * dloc[k];
