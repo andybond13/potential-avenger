@@ -56,8 +56,9 @@ int main(int argc, const char* argv[]) {
 	bool vbc = true;
 
 	double h = 1.0/static_cast<double>(Nelt);
-	double alfa = 1.0 - pow(1.0 - L * strain_rate * sqrt(rho / (2*Yc)),2);
-	double qty = sqrt(2.0 * Yc * (1.0 - alfa)/E) * static_cast<double>(startWithLoad);
+	//double alfa = 1.0 - pow(1.0 - L * strain_rate * sqrt(rho / (2*Yc)),2);
+	//double qty = sqrt(2.0 * Yc * (1.0 - alfa)/E) * static_cast<double>(startWithLoad);
+	double qty = 0.999 * sqrt(2.0 * Yc / E) * static_cast<double>(startWithLoad);
 	double e0 = qty;
 	vector<double> eIn = vector<double>(Nelt,e0);
 	vector<double> xIn = vector<double>(Nnod,0);
@@ -83,15 +84,15 @@ int main(int argc, const char* argv[]) {
 		xIn[j] = static_cast<double>(j) * h;
 		uIn[j] = xIn[j] * e0;
 		vIn[j] = static_cast<double>(vbc) * strain_rate * xIn[j];
-		phiIn[j] = 2.0 * h - xIn[j];
+//		phiIn[j] = 2.0 * h - xIn[j];
 	}	
 	vIn[Nnod-1] = strain_rate;
 
 	vector<Segment*> segIn;
-	Segment* seg1 = new Segment(xIn[0], phiIn[0], -1);
-	seg1->indices.push_back(-1);
-	segIn.push_back(seg1);
-	unsigned nucleated = 1;
+//	Segment* seg1 = new Segment(xIn[0], phiIn[0], -1);
+//	seg1->indices.push_back(-1);
+//	segIn.push_back(seg1);
+	unsigned nucleated = 0;
 
     pa.run(E, rho, A, L, Yc, pg, wg, phiIn, segIn, nucleated, vbc, eIn, xIn, uIn, vIn, YcvIn, dm);
 	
