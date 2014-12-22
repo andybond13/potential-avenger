@@ -308,7 +308,12 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 
         //enforce phi constraints - update segments
 		//if it nucleated this time-step, set YbarmYc = 0
-		if (numNuc > 0) for (unsigned l = nSegs; l < segments.size(); ++l) segments.at(l)->YbarmYc = 0.0;
+		if (numNuc > 0) {
+			for (unsigned l = nSegs; l < segments.size(); ++l) {
+				segments.at(l)->YbarmYc = 0.0;
+				for (unsigned j = max(0,static_cast<int>(segments[l]->begin())-2); j <= min(segments[l]->end()+1,Nelt-1); ++j) Ybar[j] = 1.0; 
+			}
+		}
 
 		if (numNuc > 0) {
     		analyzeDamage(phiNL,h,segments);
@@ -499,32 +504,37 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 	assert(gradientPhiL.size() == Nnod);
 	assert(gradientPhiNL.size() == Nnod);
    
-	if (localOnly == 0 && minOpenDist == 0.0 && alpha > 0) for (unsigned j = 0; j < Nnod; ++j) assert(fabs(gradientPhiL[j]) < 1.0 + Nelt*EPS);
-    //if (localOnly == 0) for (unsigned j = 0; j < Nnod; ++j) assert(fabs(gradientPhiNL[j]) <= 1.0);
+	if (localOnly == 0 && minOpenDist == 0.0 && alpha > 0) {
+		for (unsigned j = 0; j < Nnod; ++j) {
+			if (j > 0) if (d[j] == 1.0 && d[j-1] == 1.0) continue;
+			if (j > 0) if (inTLS[j] + inTLS[j-1] == 2) continue;
+			assert(fabs(gradientPhiL[j]) < 1.0 + 1.0e-8);
+		}
+	}
 
     //for local: check that Y <= Yc
 	if (alpha > 0) {
-    	for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0 && d[j] < 1.0) assert( Y[j]/Ycv[j] < 1.0 + 1.0e-8);
+    	for (unsigned j = 0; j < Nelt; ++j) assert( Ybar[j] < 1.0 + 1.0e-4);
 	}
 
 	//for non-local: check that Ybar <= Yc
 	if (minOpenDist == 0.0) {
     for (unsigned j = 0; j < segments.size(); ++j) assert( (segments[j]->YbarmYc) <= 1.e-6);
 	}
-
+/*
 	//for non-local: check that gradient of phi is 1 on all elements
 	if (nucleated > 0) {
         for (unsigned l = 0; l < segments.size(); ++l) {
 		double qty = (segments[l]->phipeak-segments[l]->phimin)/(segments[l]->xpeak-segments[l]->xmin);
 		
-/*			for (unsigned j = segments[l]->begin()+1; j < segments[l]->end()-1; ++j) {
+			for (unsigned j = segments[l]->begin()+1; j < segments[l]->end()-1; ++j) {
 				
 				if( fabs(phiNL[j] - phiNL[j+1]) == h) {cout << " failing on segment " << l << "  element " << j << endl;} 
 				assert( fabs(phiNL[j] - phiNL[j+1]) == h); 
 			}
-*/		}
+		}
 	}
-
+*/
 	return;
 }
 
@@ -808,7 +818,7 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
 
 		if (Ybar[j] == 0.0) {
 			if (d[j] == 1 && inTLS[j] == 1) Ybar[j] = 0.0;  //not sure why some are excluded
-			else Ybar[j] = Y[j]/Yc;
+			else Ybar[j] = Y[j]/Ycv[j];
 		}
 
         if (inTLS[j] == 1) dissip_energy_TLS += h * A * simpleY[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
@@ -855,7 +865,7 @@ double PotentialAvenger::H (const unsigned j, const double phi) {
 	double dee = dm.dval(phi);
 	if (sm == "SQRT") return (Ycv[j] * alpha * dee * dee)/(1.0 - alpha * dee);
 	if (sm == "LIN") {
-		double p = phi/lc;	
+		double p = max(phi,0.0)/lc;	
 		double H = dee / pow(1.0 - p + alpha * p * p,2);	
 		return Ycv[j]*(H-dee);
 	}
@@ -866,7 +876,7 @@ double PotentialAvenger::dH (const unsigned j, const double phi) {
 	double dee = dm.dval(phi);
     if (sm == "SQRT") return (Ycv[j] * alpha * dee) * (2.0 - alpha * dee)/pow(1.0 - alpha * dee,2);
     if (sm == "LIN") {
-		double p = phi/lc;	
+		double p = max(phi,0.0)/lc;	
 		double dHdp = 2*(alpha * pow(p, 3) - 3*alpha * pow(p,2) + 1) / pow(alpha * pow(p,2) - p + 1, 3);
 		double dpdd = 0.5 / (1.0 - p); 
 		double dH = dHdp * dpdd;
@@ -879,7 +889,7 @@ double PotentialAvenger::d2H (const unsigned j, const double phi) {
 	double dee = dm.dval(phi); 
     if (sm == "SQRT") return (2.0 * Ycv[j] * alpha) /pow(1.0 - alpha * dee,3);
     if (sm == "LIN") {
-		double p = phi/lc;
+		double p = max(phi,0.0)/lc;	
 		double d2Hdp2 = (4*pow(alpha,2)*pow(p,5) - 18*pow(alpha,2)*pow(p,4) + 12*pow(alpha,2)*pow(p,3) - alpha*pow(p,4) + 4*alpha*pow(p,3) + 10*alpha*pow(p,2) - 12*alpha*p - 4*p + 4)/(pow(p - 1,2)*pow(alpha*pow(p,2) - p + 1,4));
 		double dpdd = 0.5 / (1.0 - p); 
 		double d2H = d2Hdp2 * dpdd;
@@ -1898,6 +1908,7 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
 		//can't fail if already nucleated
         double minOpen = max(h,minOpenDist);
         for (unsigned j = 0; j < newSegment.size(); ++j) {
+			if (newSegment[j]->phipeak < 0) continue; //a negative segment can't count
             if (nucleated == 0) continue;	// the null level-set can't be an impediment to nucleation		
             
 			if (elemOrNodal.compare("nodal") == 0) {
