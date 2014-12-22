@@ -1386,7 +1386,6 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
     assert(segments[index]->xmin <= L);
     assert(segments[index]->xmin >= 0.0);
 
-	double qty = (segments[index]->phipeak-segments[index]->phimin)/(segments[index]->xpeak-segments[index]->xmin);
 
 	assert( segments[index]->phipeak - segments[index]->phimin >= -EPS);
 	assert( segments[index]->slope * (segments[index]->xpeak - segments[index]->xmin) >= -EPS);
@@ -1441,9 +1440,7 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
     unsigned iphimin = sbegin;
 	double slope = segment->slope;
     assert(pg.size() == wg.size());
-    for (unsigned j = 0; j <= Nelt; ++j) {
-//		if (x[j+1] < min(segment->xpeak,segment->xmin)) continue;
-//		if (x[j] > max(segment->xpeak,segment->xmin)) continue;
+    for (unsigned j = max(0, (int)sbegin-1); j <= min(Nelt, (unsigned)send+1); ++j) {
 
 		if (inTLSnode[j]+inTLSnode[j+1] == 0) continue;
 	
@@ -1456,12 +1453,6 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 		double phiB = phiNL[j];
 		double end = x[j+1];
 		double phiE = phiNL[j+1];
-
-		//see if nodes are contained in indices
-		unsigned node1 = contains(segment->indices, static_cast<int>(j) );	
-		unsigned node2 = contains(segment->indices, static_cast<int>(j+1) );
-		if (node1 + node2 == 0) continue;	
-		assert(node1 + node2 > 0);
 
 		//check peak
 		if (slope == -1) {
