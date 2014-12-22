@@ -395,6 +395,8 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 
     }//end time-loop
 
+	vector<double> localFragLength = localFragmentLength();
+
     //find fragment length total & minimum
     cout << " fragment lengths:" << endl;
     double minfrag = _fMin; 
@@ -730,8 +732,11 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 		d[j] = 0.0;
         s[j] = 0.0;
 		double dee = d_1[j];
-//cout << " dee before = " << dee << "  phiL before = " << phiL[j] << endl;
+		
 		//check to see if damage needs to be recalculated; (local model so no need to use quadrature for dH)
+		vector<double> qtyList;
+		vector<double> deeList;
+		int nrCount = 0;
 		if (0.5 * E * e[j] * e[j] > dH(j,dm.phi(d_1[j])) + Ycv[j]) 	{
 			if (sm == "SQRT") {
 				double factor = sqrt(2.0 * Ycv[j] / (E * e[j] * e[j]) ); 
@@ -741,9 +746,11 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 				double qty = (E * e[j] * e[j]) / (2.0 * Ycv[j]);
 				//begin NR
 				double R = dH(j,dm.phi(dee)) - qty;
-				double err_tol = 1e-8;
-				unsigned nrCount = 0;
-				unsigned nrLimit = 20;
+				double err_tol = 1e-6;
+				nrCount = 0;
+				int nrLimit = 20;
+				qtyList.push_back((0.5 * E * e[j] * e[j] - dH(j,dm.phi(dee)))/ Ycv[j] -1);
+				deeList.push_back(dee);
 				while (fabs(R) > err_tol && nrCount < nrLimit) {
 					double p = dm.phi(dee)/lc;
 					nrCount++;
@@ -753,11 +760,29 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 					if (p == 1.0) {R = 0.0; T = 1.0;}
 					dee += -(R/T);
 					dee = max(min(dee, 1.0), 0.0);
-				if (dee == 1.0) dee = 0.9999;
+					qtyList.push_back((0.5 * E * e[j] * e[j] - dH(j,dm.phi(dee)))/ Ycv[j] -1);
+					deeList.push_back(dee);
+					if (dee == 1.0) dee = 0.9999;
 				}
-				if (nrCount == nrLimit) dee = 1.0;
+
+				if (nrCount >= nrLimit) {
+					double thisQty = -numeric_limits<double>::max();
+					dee = deeList[0];
+					//need to take the dee that produced the negative qty of smallest magnitude
+					for (unsigned J = 0; J < deeList.size(); ++J) {
+						if (qtyList[J] < 0 && qtyList[J] > thisQty) {
+							thisQty = qtyList[J];
+							dee = deeList[J];
+						}
+					}
+					//if failed, take d as halfway between d and 1.
+					if (thisQty == -numeric_limits<double>::max()) dee = 0.5*deeList.back() + 0.5; 
+				}
+        
+				if (0.5 * E * e[j] * e[j] - dH(j,dm.phi(dee)) > Ycv[j] * (1 + 1.0e-6)) nrCount = -1; 
 				//end NR				
 			}
+
             if (dee < 0.0) //E * e[j] * e[j] < 2.0 * Yc) 
 				dee = 0.0;			//not damaged if Y < Yc
             if (dee > 1.0)
@@ -765,11 +790,12 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
             assert(nodesInTLS < 2);
 			status = 1;
 		}
+
         if (dee > d_max[j]) d_max[j] = dee;		//update maximum damage
-		d[j] = dee;
+		d[j] = max(dee, d_1[j]);
         s[j] = E * (1.0 - dee) * e[j];
 		assert(d[j] >= d_1[j]);
-		if (d[j] < 1.0) assert(0.5 * E * e[j] * e[j] - dH(j,dm.phi(d[j])) <= Ycv[j] * (1 + 1.0e-6));
+		if (d[j] < 1.0 && d[j] == dee && nrCount != -1) assert(0.5 * E * e[j] * e[j] - dH(j,dm.phi(d[j])) <= Ycv[j] * (1 + 1.0e-6));
 		
         if (fullCompression) {
             //this makes compression fully in contact no matter what the damage
@@ -1744,8 +1770,8 @@ vector<double> PotentialAvenger::findFragments(unsigned& nfrags, const vector<Se
     
     //calculate total number of fragments (removing symmetry simplification)
     vector<double> fragLength = fragmentLength(segments); 
-    vector<double> localFragLength = localFragmentLength(); 
     nfrags = fragLength.size();
+    if (_numFrag != nfrags) vector<double> localFragLength = localFragmentLength(); 
     fragmentStats(fragLength);   
 
     return fragLength; 
