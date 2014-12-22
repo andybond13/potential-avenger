@@ -4,6 +4,8 @@
 //(c) 2013, 2014
 
 #include <potential-avenger.h>
+#include "boost/random.hpp"
+#include "time.h"
 
 using namespace std;
 
@@ -62,8 +64,20 @@ int main(int argc, const char* argv[]) {
 	vector<double> uIn = vector<double>(Nnod,0);
 	vector<double> vIn = vector<double>(Nnod,0);
 	vector<double> YcvIn = vector<double>(Nelt, Yc);
-	DamageModel dm = DamageModel("Parabolic", lc);
 
+	//make weibull distribution
+	double _lambda = Yc * 0.21586552;
+	double _k = 2.0;
+	double _loc = Yc * (1.0 - 0.19130584);
+    //Create a uniform distrib'd number
+    boost::random::uniform_real_distribution<double> distro(0., 1.);
+    boost::mt19937 rng(static_cast<unsigned> (time(0)));
+    for (unsigned i = 0; i < YcvIn.size(); i++){
+        //Create a Weibull distrib'd number from the uniform distrib'd number
+        YcvIn[i] = pow( -log(1.0 - distro(rng)), 1/_k) * _lambda + _loc;
+    }
+
+	DamageModel dm = DamageModel("Parabolic", lc);
 
 	for (unsigned j = 0; j < Nnod; ++j) {
 		xIn[j] = static_cast<double>(j) * h;
