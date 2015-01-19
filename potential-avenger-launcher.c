@@ -19,6 +19,15 @@ void writeDisplacements (const vector<double>& uIn, const double& L) {
 	return;
 }
 
+template <typename T> T min(const vector<T>& in) {
+    assert(in.size() > 0);
+    T min = in[0];
+    for (unsigned i = 1; i < in.size(); ++i) {
+        if (in[i] < min) min = in[i];
+    }
+    return min;
+}
+
 int main(int argc, const char* argv[]) {
     assert(argc == 15);
  
@@ -39,7 +48,7 @@ int main(int argc, const char* argv[]) {
     string sm = string(argv[14]);
     string path = ".";
  
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, sm, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, sm, path);
 
 	//"serious" hard-coded input
 	unsigned Nnod = Nelt + 1;
@@ -58,14 +67,14 @@ int main(int argc, const char* argv[]) {
 	double h = 1.0/static_cast<double>(Nelt);
 	//double alfa = 1.0 - pow(1.0 - L * strain_rate * sqrt(rho / (2*Yc)),2);
 	//double qty = sqrt(2.0 * Yc * (1.0 - alfa)/E) * static_cast<double>(startWithLoad);
-	double qty = 0.999 * sqrt(2.0 * Yc / E) * static_cast<double>(startWithLoad);
-	double e0 = qty;
-	vector<double> eIn = vector<double>(Nelt,e0);
 	vector<double> xIn = vector<double>(Nnod,0);
 	vector<double> uIn = vector<double>(Nnod,0);
 	vector<double> vIn = vector<double>(Nnod,0);
 	vector<double> YcvIn = vector<double>(Nelt, Yc);
 
+	double qty = 0.999 * sqrt(2.0 * min(YcvIn) / E) * static_cast<double>(startWithLoad);
+	double e0 = qty;
+	vector<double> eIn = vector<double>(Nelt,e0);
 	//make weibull distribution
 	double _lambda = Yc * 0.21586552;
 	double _k = 2.0;

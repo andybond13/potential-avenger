@@ -9,13 +9,12 @@
 
 using namespace std;
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in5, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& in13, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& in13, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
     Nelt = in3;
     lc = in4;
-    startWithLoad = in5;
     printVTK = in6;
     oneAtATime = in7;
     minOpenDist = in8;
