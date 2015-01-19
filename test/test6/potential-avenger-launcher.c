@@ -37,7 +37,7 @@ int main(int argc, const char* argv[]) {
     string sm = string(argv[14]);
     string path = ".";
  
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, sm, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, sm, path);
 
 	//"serious" hard-coded input
 	unsigned Nnod = Nelt + 1;
