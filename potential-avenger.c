@@ -381,7 +381,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
             double residu_Y = 0.0; double tangent_Y = 0.0;
             double phimin = 0.0;  double phimax = 0.0;
        		double phiminY = 0.0; double phimaxY = 0.0;
-        	unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+        	calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 		}
 */
         //check enforcement of constraints
@@ -515,7 +515,7 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 
     //for local: check that Y <= Yc
 	if (alpha > 0) {
-    	for (unsigned j = 0; j < Nelt; ++j) assert( Ybar[j] < 1.0 + 1.0e-4);
+    	for (unsigned j = 0; j < Nelt; ++j) if (inTLS[j] == 0) assert( Ybar[j] < 1.0 + 1.0e-4);
 	}
 
 	//for non-local: check that Ybar <= Yc
@@ -975,11 +975,12 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
         if (segments[l]->phimin >= lc) continue;
 
         double YbarmYc = 1.0;    
-		vector<double> residuV, tangentV, phimaxV;
+		vector<double> residuV, tangentV, phimaxV, YcavgV;
 		unsigned iter_max = 20;
 		unsigned limit = iter_max;
 		unsigned count = 0;
 		double err_tol = 1.e-6;
+		double Ycavg = 0.0; 
         while (err_crit > err_tol && nbiter[i] < iter_max) {
             nbiter[i]++;
 			
@@ -989,7 +990,6 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			double phimax = 0.0; 
             double phiminY = 0.0;
 			double phimaxY = 0.0;
-			double Ycavg = 0.0; 
             unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 			
 			if (status == 0) goto next;
@@ -1017,6 +1017,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			residuV.push_back(residu);
 			tangentV.push_back(tangent);
 			phimaxV.push_back(phimax);
+			YcavgV.push_back(Ycavg);
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] += dphi;//phiNL_before[j] + dphi;
                 //enforcing limit of level-set motion
@@ -1070,6 +1071,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
     	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 				phimaxV.push_back(segments[l]->phipeak);
 				residuV.push_back(residu_Y);
+				YcavgV.push_back(Ycavg);
 			}
 		} //end bisection search
 
@@ -1099,13 +1101,14 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
     	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 				phimaxV.push_back(segments[l]->phipeak);
 				residuV.push_back(residu_Y);
+				YcavgV.push_back(Ycavg);
 				count++;
 			}
 		}
 
 
 		//crawl for zero if need be
-		if (YbarmYc/Yc > 1.e-6/* && hasNeg == 0*/) {
+		if (YbarmYc/Yc > 1.e-6) {
             double residu_Y = 0.0;
             double tangent_Y = 0.0;
             double phimin = 0.0;
@@ -1131,6 +1134,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
                 calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
                 phimaxV.push_back(segments[l]->phipeak);
                 residuV.push_back(residu_Y);
+				YcavgV.push_back(Ycavg);
 				if (residu_Y <= 0){
 					//call it here
 					haveZero = true;
@@ -1465,13 +1469,18 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
     unsigned iphimin = sbegin;
 	double slope = segment->slope;
     assert(pg.size() == wg.size());
-    for (unsigned j = max(0, (int)sbegin-1); j <= min(Nelt, (unsigned)send+1); ++j) {
+
+	//determine endpoints to be integrated
+	const double xpeak = segment->xpeak;
+	const double xmin = segment->xmin;
+
+    for (unsigned j = max(0, (int)sbegin-1); j <= min(Nelt-1, (unsigned)send+1); ++j) {
 
 		if (inTLSnode[j]+inTLSnode[j+1] == 0) continue;
-	
-		//determine endpoints to be integrated
-		double xpeak = segment->xpeak;
-		double xmin = segment->xmin;
+		
+		//if all over l_c, skip
+		if (slope == 1 && phiNL[j] >= lc) continue;
+		if (slope == -1 && phiNL[j+1] >= lc) continue;
 
 		//default
 		double begin = x[j];
@@ -1481,22 +1490,30 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 
 		//check peak
 		if (slope == -1) {
-			begin = max(begin, xpeak);
+			begin = max(begin, min(x[j+1],xpeak));
 			if (begin == xpeak) phiB = segment->phipeak;
+			if (begin == x[j+1]) phiB = phiNL[j+1];
+			assert(begin >= x[j]); assert(begin <= end);
 		}
 		if (slope == 1) {
-			end = min(end, xpeak);
+			end = min(end, max(x[j],xpeak));
 			if (end == xpeak) phiE = segment->phipeak;
+			if (end == x[j]) phiE = phiNL[j];
+			assert(end <= x[j+1]); assert(begin <= end);
 		}
 
 		//check min
         if (slope == 1) {
-            begin = max(begin, xmin);
+            begin = max(begin, min(x[j+1],max(xmin, x[j])));
             if (begin == xmin) phiB = segment->phimin;
+            if (begin == x[j]) phiB = phiNL[j];
+			assert(begin <= x[j+1]); assert(end >= begin);
         }
         if (slope == -1) {
-            end = min(end, xmin);
+            end = min(end, max(x[j],min(xmin, x[j+1])));
             if (end == xmin) phiE = segment->phimin;
+            if (end == x[j+1]) phiE = phiNL[j+1];
+			assert(end >= x[j]); assert(end >= begin);
         }
 
 		/*
@@ -1525,17 +1542,33 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 
 		//check segzero
 		if (slope == 1) {
-			begin = max(begin, segZero);
-			if (begin == segZero) {
-				phiB = phiNL[j+1] - phiNL_1[j+1];
-			}	
+			begin = max(begin, min(segZero,x[j+1]));
+			if (begin == segZero) phiB = phiNL[j+1] - phiNL_1[j+1];
+			if (begin == x[j+1]) phiB = phiNL[j+1];
+			assert(begin <= x[j+1]); assert(end >= begin);
 		}
 		if (slope == -1) {
-			end = min(end, segZero);
-			if (end == segZero) {
-				phiE = phiNL[j] - phiNL_1[j];
-			}
+			end = min(end, max(segZero,x[j]));
+			if (end == segZero) phiE = phiNL[j] - phiNL_1[j];
+			if (end == x[j]) phiE = phiNL[j];
+			assert(end >= x[j]); assert(end >= begin);
 		}
+
+        //check lc
+        if (slope == -1) {
+            double phiBorig = phiB;
+            phiB = min(phiB, lc); 
+            if (phiB == lc) begin = begin - (lc - phiBorig);
+            assert(begin >= x[j]); assert(begin <= x[j+1]);
+			if (begin >= end) continue;
+        }
+        if (slope == 1) {
+            double phiEorig = phiE;
+            phiE = min(phiE, lc);
+            if (phiE == lc) end = end + (lc - phiEorig);
+            assert(end >= x[j]); assert(end <= x[j+1]);
+			if (begin >= end) continue;
+        }
 		
 		double weight = max(min(end - begin, h), 0.0);
 		assert(weight >= 0);
@@ -1621,10 +1654,15 @@ if (segLength <= 0.0) {
 	assert(segLength > -EPS);
 	Ycavg /= segLength;
 
+	if (segLength == 0.0) {
+		Ycavg = Yc;
+	}
+
     for (unsigned j = max(0,static_cast<int>(sbegin)-1); j <= min(send+1,Nelt-1); ++j) {
         if (j < 0) continue;
         if (inTLSnode[j]+inTLSnode[j+1] == 0) continue;
 		Ybar[j] = YbarmYc/Ycavg+1.0;
+		assert(isnan(Ybar[j]) == 0);
 	}
 
 	return 1;
