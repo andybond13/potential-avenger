@@ -1480,7 +1480,9 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 		
 		//if all over l_c, skip
 		if (slope == 1 && phiNL[j] >= lc) continue;
+		if (slope == 1 && phiNL[j+1]-h >= lc) continue;
 		if (slope == -1 && phiNL[j+1] >= lc) continue;
+		if (slope == -1 && phiNL[j]-h >= lc) continue;
 
 		//default
 		double begin = x[j];
