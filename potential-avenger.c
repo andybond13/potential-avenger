@@ -496,6 +496,13 @@ void PotentialAvenger::checkInTLS(const vector<Segment*>& segments, vector<unsig
         //if both nodes are not in TLS zones, then element is not in TLS zone; if one or both are in, then element is in
         if (nodes[k] == 0 && nodes[k+1] == 0) elem[k] = 0;
         else elem[k] = 1;
+
+		//designed to eliminate spots of local damage under non-local damage curve
+		if (phiNL[k] > phiL[k] && phiNL[k+1] > phiL[k]) {
+			elem[k] = 1;
+			nodes[k] = 1;
+			nodes[k+1] = 1;
+		} 
     }
     return;
 }
@@ -869,6 +876,10 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
 		if (Ybar[j] == 0.0) {
 			if (d[j] == 1 && inTLS[j] == 1) Ybar[j] = 0.0;  //not sure why some are excluded
 			else Ybar[j] = Y[j]/Ycv[j];
+//			if (Ybar[j] > 1 && inTLS[j] == 1) {
+//				Ybar[j] = 1.0; //not sure if this is needed, looks like not as of 1/21
+//				//cout << "   ---> set to Ybar = 1" << endl;
+//			}
 		}
 
         if (inTLS[j] == 1) dissip_energy_TLS += h * A * simpleY[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
@@ -1056,6 +1067,8 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			checkInTLS(segments,inTLS,inTLSnode);
         	//setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
         } //endwhile
+		//check for YbarmYc/Ycavg = 0, i.e. when whole segment has gone above lc, Ycavg undefined, err_crit = nan, but still good.
+		if (YbarmYc/Ycavg == 0) count++;
 
 		//Bisection search to finish off convergence calculation
 		bool hasPos;
@@ -1136,7 +1149,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 
 
 		//crawl for zero if need be
-		if (YbarmYc/Yc > 1.e-6) {
+		if (YbarmYc/Ycavg > 1.e-6) {
             double residu_Y = 0.0;
             double tangent_Y = 0.0;
             double phimin = 0.0;
@@ -1189,14 +1202,17 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
 
 
+			assert(phimaxV.size() == residuV.size()); assert(residuV.size() == YcavgV.size()); 
+			//for (unsigned j = 0; j < residuV.size(); ++ j) cout << phimaxV[j] << " " << j << " " << residuV[j] << " " << YcavgV[j] << endl;
 		}//end crawl
-
-		assert(YbarmYc/Yc <= 1.e-6);
+/**/
+		assert(YbarmYc/Ycavg <= 1.e-6);
 		assert(nbiter[i] < iter_max || count > 0);
+        next:
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
+//                phiNL[j] = min(phiNL[j],phiNL_1[j]+1.0*h); //constraint: dphi >= 0 limit to one h per timestep
             }
-        next:
         err_crit = 0.0;
         //setPeak(phiNL,segments,l); //segments[l].phipeak += dphi; 
 
