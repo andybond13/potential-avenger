@@ -561,7 +561,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
   	    	vector<double> dloc(pg.size(),0.0);
 			if (inTLSnode[j] == 1 && inTLSnode[j+1] == 0) {
 				//element at transition: left in, right out
-				double phiLocal = phiL[j+1];
+				double phiLocal = phiL[j];
 				double delta = fabs(phiNL[j] - phiLocal); 
                 delta = max(delta, 0.0); delta = min(delta, h);
         	    for (unsigned k = 0; k < pg.size(); ++k) {
