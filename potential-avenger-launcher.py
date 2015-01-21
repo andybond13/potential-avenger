@@ -21,8 +21,10 @@ minOpenDist = 0.00
 #(LIN) lambda = 2*sigmac*lc/(E*wc); wc = 2 * Gc/sigmac; sigmac^2 = 2*E*Yc; lambda = 2*Yc*lc/Gc
 alpha = 0.95 	#2*Yc*lc/Gc
 alpha = 2*Yc*lc/Gc
-sm = "LIN"			#SQRT - match sqrt cohesive TSL or LIN - match linear cohesive TSL
-localOnly = 0	#1 for local only, 0 for local/non-local
+print alpha
+assert(alpha < 0.5)
+sm = "LIN"         #SQRT - match sqrt cohesive TSL or LIN - match linear cohesive TSL
+localOnly = 0   #1 for local only, 0 for local/non-local
 visualizeCracks = 0 #1 to visualize cracks (elements disappear when d = 1)
 fullCompression = 1 #0: s = E*e*(1-d) always, 1: s=E*e*(1-d) in tension, s=E*e in compression
 elemDeath = 1 #0: element death not on, 1: element death on

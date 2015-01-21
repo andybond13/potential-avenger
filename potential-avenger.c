@@ -1025,8 +1025,8 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			if (segments[l]->phimin >= lc) goto next;
 
             residu = residu_Y;
-            err_crit = fabs(residu)/Yc/(dm.dval(phimax) - dm.dval(phimin)) ; //Ycavg;
 
+            err_crit = fabs(residu)/Ycavg/(dm.dval(phimax) - dm.dval(phimin)) ; //Ycavg;
             double tangent = tangent_Y;
 //cout << "dphi = " << dphi;
             if (fabs(tangent) <= 1.e-10) {
@@ -1673,12 +1673,13 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
     }				
 */
     segment->YbarmYc = YbarmYc;
-if (segLength <= 0.0) {
+if (segLength < 0.0) {
 //	cout << " begin-end = " << segment->begin() << "  - " << segment->end() << endl;
 //    cout << "   YbarmYc = " << YbarmYc << "   saved as " << segment->YbarmYc << endl;
     cout << endl;
     cout << " residuY = " << residu_Y << "    Yc = " << Yc << endl;
     cout << " YbarmYc = " << YbarmYc << endl;
+	assert(1==0);
 }
 	assert(segLength <= fabs(segment->xpeak - segment->xmin)/h + 1.0e-6);
 	assert(segLength > -EPS);
