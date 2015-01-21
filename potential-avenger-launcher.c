@@ -29,7 +29,7 @@ template <typename T> T min(const vector<T>& in) {
 }
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 15);
+    assert(argc == 16);
  
 	//read input from potential-avenger-launcher.py
     double strain_rate = atof(argv[1]);
@@ -46,9 +46,10 @@ int main(int argc, const char* argv[]) {
     unsigned visualizeCracks = atoi(argv[12]);
     unsigned fullCompression = atoi(argv[13]);
     string sm = string(argv[14]);
+	unsigned elemDeath = atoi(argv[15]);
     string path = ".";
  
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, sm, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, sm, elemDeath, path);
 
 	//"serious" hard-coded input
 	unsigned Nnod = Nelt + 1;

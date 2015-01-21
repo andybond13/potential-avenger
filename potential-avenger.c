@@ -9,7 +9,7 @@
 
 using namespace std;
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& in13, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& in13, unsigned& in14, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
@@ -23,6 +23,7 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     visualizeCracks = in11;
     fullCompression = in12;
 	sm = in13;
+	elemDeath = in14;
     _path = path + "/results";
 
     _numFrag = 0;    
@@ -546,7 +547,8 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
     for (unsigned j = 0; j < Nelt; ++j) {
 
 		if (inTLS[j] == 0) continue; //skip if local!
-		
+	
+		double phimax = 0;	
         d_quad[j].clear();
 		d_quad_wt[j].clear();
 		d_quad_phi[j].clear();
@@ -573,6 +575,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 					d[j] += wg[k] * dloc[k] * delta/h;
             	    s[j] += wg[k] * (1.0-dloc[k]) * E * e[j] * delta/h;
                 }
+				phimax = max(phiLocal,phiNL[j]);
 				d[j] += (h-delta)/h * dm.dval(phiLocal);
 				s[j] += (h-delta)/h * (1.0-dm.dval(phiLocal)) * E * e[j];
 				d_quad[j].push_back(dm.dval(phiLocal)); 
@@ -595,6 +598,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
                     s[j] += wg[k] * (1.0-dloc[k]) * E * e[j] * (h-delta)/h;
 //cout << " added 0 " << dm.dval(philoc1) << " ( " << wg[k] * delta/h << " )" <<endl;
                 }   
+				phimax = max(phiLocal,phiNL[j+1]);
 				d[j] += delta/h * dm.dval(phiLocal);
 				s[j] += delta/h * (1.0 - dm.dval(phiLocal)) * E * e[j];
                 d_quad[j].push_back(dm.dval(phiLocal));
@@ -621,6 +625,11 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
     	                if (flag) philoc1 = pg[k] * phiNL[j] + (1-pg[k]) * (phiNL[j] + delta);
         	            double philoc2 = pg[k] * (phiNL[j] - delta) + (1-pg[k]) * phiNL[j+1];
         	            if (flag) philoc2 = pg[k] * (phiNL[j] + delta) + (1-pg[k]) * phiNL[j+1];
+
+						phimax = max(phiNL[j], phiNL[j+1]);
+						if (flag) phimax = max(phimax, phiNL[j]+delta);
+						else phimax = max(phimax, phiNL[j]-delta);
+
 						d_quad[j].push_back(dm.dval(philoc1));
 						d_quad[j].push_back(dm.dval(philoc2));
 						d_quad_wt[j].push_back(delta/h * wg[k]);
@@ -650,6 +659,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
             	            d_quad_phi[j].push_back(philoc);
                 	        dloc[k] = dm.dval(philoc);
 						}
+						phimax = max(phiNL[j], phiNL[j+1]);
         	        }
             	    s[j] += wg[k] * (1-dloc[k]) * E * e[j];
 					d[j] += wg[k] * dloc[k];
@@ -657,6 +667,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
     	    } else if  (phiNL[j] <= 0 && phiNL[j+1] <= 0) {
 				//both sides negative
         	    s[j] = E * e[j];
+				phimax = max(phiNL[j], phiNL[j+1]);
 			    d_quad[j].push_back(0.0);
 				d_quad_wt[j].push_back(1.0); 
 			    d_quad_phi[j].push_back(0.5 * (phiNL[j] + phiNL[j+1]));  //this isn't quite true, but it doesn't matter
@@ -673,6 +684,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 					d_quad_wt[j].push_back(wg[k] * delta);
 					d_quad_phi[j].push_back(philoc);
         	    }
+				phimax = max(phiNL[j], phiNL[j+1]);
 				d_quad[j].push_back(0.0);
 				d_quad_wt[j].push_back( 1-delta );
 				d_quad_phi[j].push_back(0.0);  	//this isn't quite true, but it doesn't matter
@@ -690,6 +702,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 					d_quad_wt[j].push_back(wg[k] * delta); 
 					d_quad_phi[j].push_back(philoc);
         	    }
+				phimax = max(phiNL[j], phiNL[j+1]);
 				d_quad[j].push_back(0.0);
 				d_quad_wt[j].push_back( 1-delta );
 				d_quad_phi[j].push_back(0.0);  	//this isn't quite true, but it doesn't matter
@@ -706,6 +719,18 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
                 //this makes compression fully in contact no matter what the damage
                 if (e[j] < 0) s[j] = e[j] * E;
             }
+		}
+
+		//do element death
+		if (elemDeath == 1) {
+			if (phimax >= lc) {
+				s[j] = 0.0;
+				d[j] = 1.0;
+				for (unsigned k = 0; k < pg.size(); ++k) {
+					d_quad[j][k] = 1.0;
+					d_quad_phi[j][k] = lc;
+				}
+			}
 		}
 
         assert(d_quad[j].size() == d_quad_wt[j].size());
@@ -847,15 +872,18 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
 		}
 
         if (inTLS[j] == 1) dissip_energy_TLS += h * A * simpleY[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
+        if (inTLS[j] == 1 && elemDeath == 1 && d[j] == 1 && d[j] == 1 && d_1[j] < 1) dissip_energy_TLS += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]); //kinetic at time of death since death kills all future kinetic 
         if (inTLS[j] == 0) dissip_energy_local += h * A * simpleY[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
-        if (i > 0) {
-            kinetic_energy += 0.5 * h * A * rho * 0.5 *
-                                ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
-            //ustat(i,j+1) = ustat(i,j) + h*s(0,Nelt)/(E*(1-d(i,j)));
+        if (inTLS[j] == 0 && elemDeath == 1 && d[j] == 1 && d[j] == 1 && d_1[j] < 1) dissip_energy_local += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]); //kinetic at time of death since death kills all future kinetic
+        
+		if (i > 0) {
+			//don't do calculation if element death && d=1
+            if (elemDeath == 0 || d[j] < 1) kinetic_energy += 0.5 * h * A * rho * 0.5 * ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
         } else {
-            kinetic_energy += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
+            if (elemDeath == 0 || d[j] < 1) kinetic_energy += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
         }
-        energy[j] = h * A * 0.5 * E * e[j] * e[j] * (1.0 - d[j]);
+        
+		energy[j] = h * A * 0.5 * E * e[j] * e[j] * (1.0 - d[j]);
     }
     //ustat(i,:) *= u(1,Nnod)/ustat(i,Nnod);
     for (unsigned j = 0; j < Nelt; ++j) Ystat[j] = 0.5 * E * pow((ustat[j+1] - ustat[j])/h,2);
