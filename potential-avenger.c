@@ -1925,7 +1925,7 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 			assert(solid >= 0.0);
 			assert(powder >= 0.0);
 			fragLength.back() += solid;
-			if (fragLength.back() > 0.0) fragLength.push_back(0.0);
+			if (fragLength.back() > 0.0 && segmentList[j]->phipeak >= lc) fragLength.push_back(0.0);
 			powderLength += powder;
 		}
         if (segmentList[j]->slope == -1) {
