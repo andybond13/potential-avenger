@@ -408,7 +408,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 	}
      nfrags[Ntim-1] = fragLength.size(); 
 
-    printf("Final number of fragments: %i \nMinimum fragment length: %f    avg = %f\nFinal dissipated energy: %3.3e   = local %3.3e + TLS %3.3e  (%f/%f)\n",nfrags[Ntim-1],minfrag,sumfrag*L/static_cast<double>(nfrags[Ntim-1]),dissip_energy,dissip_energy_local,dissip_energy_TLS,dissip_energy_local/dissip_energy,dissip_energy_TLS/dissip_energy);
+    printf("Final number of fragments: %i \nMinimum fragment length: %3.3e    avg = %f\nFinal dissipated energy: %3.3e   = local %3.3e + TLS %3.3e  (%f/%f)\n",nfrags[Ntim-1],minfrag,sumfrag*L/static_cast<double>(nfrags[Ntim-1]),dissip_energy,dissip_energy_local,dissip_energy_TLS,dissip_energy_local/dissip_energy,dissip_energy_TLS/dissip_energy);
     double alt_dissip_energy = 0.0 + ext_energy - strain_energy - kinetic_energy; 
     printf("alt. dissipated energy: %3.3e \n",alt_dissip_energy); 
    cout << " fragment total length " << sumfrag << "     powder length = " << 2.0*L - sumfrag << endl;
