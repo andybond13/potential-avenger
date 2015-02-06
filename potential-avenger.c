@@ -883,15 +883,12 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
 		}
 
         if (inTLS[j] == 1) dissip_energy_TLS += h * A * simpleY[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
-        if (inTLS[j] == 1 && elemDeath == 1 && d[j] == 1 && d[j] == 1 && d_1[j] < 1) dissip_energy_TLS += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]); //kinetic at time of death since death kills all future kinetic 
         if (inTLS[j] == 0) dissip_energy_local += h * A * simpleY[j] * (d[j] - d_1[j]); //global dissipation = int: Y dd/dt dV
-        if (inTLS[j] == 0 && elemDeath == 1 && d[j] == 1 && d[j] == 1 && d_1[j] < 1) dissip_energy_local += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]); //kinetic at time of death since death kills all future kinetic
         
 		if (i > 0) {
-			//don't do calculation if element death && d=1
-            if (elemDeath == 0 || d[j] < 1) kinetic_energy += 0.5 * h * A * rho * 0.5 * ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
+            kinetic_energy += 0.5 * h * A * rho * 0.5 * ( pow(u[j] - u_1[j],2) + pow(u[j+1] - u_1[j+1],2) ) / pow(dt,2);
         } else {
-            if (elemDeath == 0 || d[j] < 1) kinetic_energy += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
+            kinetic_energy += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
         }
         
 		energy[j] = h * A * 0.5 * E * e[j] * e[j] * (1.0 - d[j]);
