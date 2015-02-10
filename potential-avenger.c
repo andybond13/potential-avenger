@@ -2528,12 +2528,12 @@ void PotentialAvenger::printCellData ( const std::string& vtkFile, const unsigne
 
     fprintf ( pFile, "\nSCALARS absGradPhiNLelem float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) fprintf ( pFile, " %12.3e \n", printable(fabs(gradPhiNLelem[i])));
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", printable(fabs(gradPhiNLelem[i])));
     fprintf ( pFile, "\n" );	
 
     fprintf ( pFile, "\nSCALARS phiL float\n" );
     fprintf( pFile, "LOOKUP_TABLE default\n" );
-    for ( unsigned i = 0; i < Nelt; i++ ) fprintf ( pFile, " %12.3e \n", printable(phiL[i]));
+    for ( unsigned i = 0; i < Nelt; i++ ) if (d[i] < 1 || visualizeCracks == 0) fprintf ( pFile, " %12.3e \n", printable(phiL[i]));
     fprintf ( pFile, "\n" );
     
     fprintf( pFile, "\nSCALARS stress float\n" );
