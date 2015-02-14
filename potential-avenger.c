@@ -250,7 +250,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
         u_1 = vector<double>(Nnod,0); u_1 = u; u.assign(Nnod,0.0);
         vector<double> v_1 = vector<double>(Nnod,0); v_1 = v; v.assign(Nnod,0.0);
         vector<double> a_1 = vector<double>(Nnod,0); a_1 = a; a.assign(Nnod,0.0);
-        d_1 = vector<double>(Nnod,0); d_1 = d; d.assign(Nnod,0.0);
+        d_1 = vector<double>(Nelt,0); d_1 = d; d.assign(Nelt,0.0);
         phiNL_1 = phiNL;
 
 
