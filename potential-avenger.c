@@ -414,7 +414,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     double alt_dissip_energy = 0.0 + ext_energy - strain_energy - kinetic_energy; 
     printf("alt. dissipated energy: %3.3e \n",alt_dissip_energy); 
    cout << " fragment total length " << sumfrag << "     powder length = " << 2.0*L - sumfrag << endl;
-	if (_fMin > _fAltMin) {
+	if (_fMin != _fAltMin) {
     printf("Alternative number of fragments: %u \nAlt.Minimum fragment length: %3.3e    avg = %f\n",static_cast<unsigned>(altFragLength.size()),_fAltMin,altsumfrag*L/static_cast<double>(altFragLength.size()));
    cout << " alt. fragment total length " << altsumfrag << "     powder length = " << 2.0*L - altsumfrag << endl;
     }
@@ -1977,7 +1977,7 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 	for (unsigned j = 0; j < fragLength.size(); ++j) {
 		if (fragLength[j] >= h) altFragLength.push_back(fragLength[j]);
 	}
-
+    if (altFragLength.size() == 0) altFragLength.push_back(0.0);
 
 	return fragLength;
 };
