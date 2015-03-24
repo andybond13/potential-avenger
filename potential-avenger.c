@@ -1530,7 +1530,9 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
 		if (slope == 1 && phiNL[j+1]-h >= lc) continue;
 		if (slope == -1 && phiNL[j+1] >= lc) continue;
 		if (slope == -1 && phiNL[j]-h >= lc) continue;
-
+        if (segment->phimin >= lc) continue;
+ 
+        //finding how much of this element (j) to integrate in the Ybar of (segment)
 		//default
 		double begin = x[j];
 		double phiB = phiNL[j];
