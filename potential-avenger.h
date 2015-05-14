@@ -39,7 +39,7 @@ std::string sm;
 unsigned elemDeath;
 
 //new variables
-std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile;
+std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile, _FDFile;
 double E, A, rho, c, L, h, dt, Yc, sigc, ec;
 unsigned _numFrag, _Nt, _DtPrint;
 double strain_energy, dissip_energy, dissip_energy_TLS, dissip_energy_local, kinetic_energy, max_energy, ext_energy, tot_energy;
@@ -55,7 +55,7 @@ std::vector<double> gradPhiNL;
 std::vector<double> gradPhiNLelem;
 unsigned nucleated;
 std::vector<std::vector<double> > d_quad,d_quad_wt,d_quad_phi,phidot;
-double EPS,alfa;
+double EPS,alfa,Fboundary;
 
 void printRunInfo();
 
@@ -102,6 +102,7 @@ unsigned calculateYbar(const std::vector<double>& pg, const std::vector<double>&
 void calculateDmaxAlt(const std::vector<double>& pg, const std::vector<double>& wg);
 
 void plotEnergies ();
+void plotForceDisp ();
 void plotFrags ();
 void plotHisto ();
 void plotSTheta ();
@@ -114,6 +115,7 @@ unsigned printMesh ( const std::string& vtkFile ) const;
 void printPointData ( const std::string& vtkFile ) const;
 void printCellData ( const std::string& vtkFile, const unsigned& Ncell ) const;
 void printGlobalInfo () const;
+void printForceDisp () const;
 void printFrags (const std::vector<double>& fragLength);
 void printSTheta ();
 void printHisto (const std::vector<double>& fragLength);
