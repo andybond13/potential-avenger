@@ -787,6 +787,11 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 			if (sm == "SQRT") {
 				double factor = sqrt(2.0 * Ycv[j] / (E * e[j] * e[j]) ); 
 				dee = (1.0 - fabs(factor)) / alpha;
+
+				//strain limit for d=1 - SQRT
+				double ec = sqrt(2.0 * Yc / E);
+				if (e[j] >= ec / (1.0 - alpha))	dee = 1.0;
+				
 			}
 			if (sm == "LIN") {
 				double qty = (E * e[j] * e[j]) / (2.0 * Ycv[j]);
@@ -827,6 +832,10 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
         
 				if (0.5 * E * e[j] * e[j] - dH(j,dm.phi(dee)) > Ycv[j] * (1 + 1.0e-6)) nrCount = -1; 
 				//end NR				
+				
+				//strain limit for d=1, lambda = 0.5 - LIN
+				double ec = sqrt(2.0 * Yc / E);
+				if (e[j] >= ec * sqrt(12.0) && alpha == 0.5)	dee = 1.0;
 			}
 
             if (dee < 0.0) //E * e[j] * e[j] < 2.0 * Yc) 
