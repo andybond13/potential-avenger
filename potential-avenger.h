@@ -123,7 +123,7 @@ void printHisto (const std::vector<double>& fragLength);
 void printClean() const;
 void fragmentStats(const std::vector<double>& fragLength);
 void killSegments(std::vector<Segment*>& seg);
-void killFragments(std::vector<Fragment*>& frag);
+//void killFragments(std::vector<Fragment*>& frag);
 void setPeakAll(const std::vector<double>& phiin, std::vector<Segment*>& segments);
 double calculateZero(Segment* segment, const std::vector<double>& phiIN);
 double calculateTotal(Segment* segment, const std::vector<double>& phiIN);

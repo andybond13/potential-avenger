@@ -165,7 +165,6 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     dissip_energy_TLS = 0.0;
     ext_energy = 0.0;
     tot_energy = 0.0;
-    vector<Fragment*> fragment_list;
 
     ustat = vector<double>(Nnod,0);
     Ystat = vector<double>(Nnod,0);
@@ -431,9 +430,8 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     //print histogram
     printHisto(fragLength);
 
-    //kill all segments and fragments
+    //kill all segments
     killSegments(segments);
-    killFragments(fragment_list);
 
 	//return displacement for testing
 	uIn = u;
@@ -446,13 +444,13 @@ void PotentialAvenger::killSegments(vector<Segment*>& seg) {
     seg.clear();
     return;
 }
-
+/*
 void PotentialAvenger::killFragments(vector<Fragment*>& frag) {
     for (unsigned i = 0; i < frag.size(); ++i) delete frag[i];
     frag.clear();
     return;
 }
-
+*/
 void PotentialAvenger::calculateLevelSetGradientL( const vector<double>& dV, vector<double>& gradientPhi) {
 	//calculate the gradient of the levelset (local model). This will be used to see if the |gradPhi| > 1,
 	//in which case, a non-local zone will be inserted
@@ -2836,7 +2834,6 @@ void PotentialAvenger::printHisto(const std::vector<double>& fragLength) {
 		//Step through fragment length list; increase count in the bin if fragment fits
 		for (unsigned k = 0; k < fragLengthSort.size(); k++){
             double length = fragLengthSort[k];
-//            if (fragment_list.size() % 2 == 1) length *= 2; //if not broken from wall, this segment has twice the length
 			if (length < max * 0.04) fHisto[0]++;
 			if ((length < max * 0.08) && (length >= max * 0.04)) fHisto[1]++;
 			if ((length < max * 0.12) && (length >= max * 0.08)) fHisto[2]++;

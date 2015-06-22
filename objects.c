@@ -4,7 +4,7 @@
 //(c) 2013,2014
 
 #include <objects.h>
-
+/*
 Fragment::Fragment(){
     localLength = 0.0;
 };
@@ -51,7 +51,7 @@ void Fragment::clear() {
     fragSegs.clear();
     return;
 }
-
+*/
 Segment::Segment(double in1, double in2, int in3) {
     xpeak = in1;
     phipeak = in2;

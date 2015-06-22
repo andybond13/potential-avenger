@@ -37,7 +37,7 @@ class Segment{
 
     private:
 };
-
+/*
 class Fragment{
     public:
     Fragment();
@@ -54,7 +54,7 @@ class Fragment{
     private:
     std::vector<Segment*> fragSegs; 
 };
-
+*/
 class SegmentComparer {
 	public:
 	bool operator() (Segment* a, Segment* b);
