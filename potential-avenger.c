@@ -498,8 +498,8 @@ void PotentialAvenger::checkInTLS(const vector<Segment*>& segments, vector<unsig
         for (unsigned index = 0; index < Nnod; ++index) {
 			//compare to phiL on both sides (if possible). inTLS if phiNL > max(phiL)
 			double phiLocal = 0.0;
-			if (index > 0) phiLocal = max(phiLocal, phiL[index]);
-			if (index < Nnod-1) phiLocal = max(phiLocal, phiL[index+1]);
+			if (index > 0) phiLocal = max(phiLocal, phiL[index-1]);
+			if (index < Nnod-1) phiLocal = max(phiLocal, phiL[index]);
 			if (phiNL[index] >= phiLocal || nodes_old[index] == 1) nodes[index] = 1;
     	}
     }
@@ -527,7 +527,7 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 	assert(gradientPhiNL.size() == Nnod);
    
 	if (localOnly == 0 && minOpenDist == 0.0 && alpha > 0) {
-		for (unsigned j = 0; j < Nnod; ++j) {
+		for (unsigned j = 0; j < Nnod-1; ++j) {
 			if (j > 0) if (d[j] == 1.0 && d[j-1] == 1.0) continue;
 			if (j > 0) if (inTLS[j] + inTLS[j-1] == 2) continue;
 			assert(fabs(gradientPhiL[j]) < 1.0 + 1.0e-8);
