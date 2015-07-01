@@ -2100,12 +2100,6 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
         assert(xlist.size() <= 1);
     }
     
-    if (elemOrNodal.compare("elem") == 0) {
-	    for (unsigned i = 0; i < xlist.size(); ++i) {
-    	    criterion[index[i]] *= (1-alfa);  //modify Yc at the location of nucleation by a factor alpha : TODO is this good???
-	    }
-    }
-
     //nucleate list
     if (xlist.size() > 0) {
         vector<double> failvalueList = vector<double>(xlist.size(),failvalue);
