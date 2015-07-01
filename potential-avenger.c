@@ -2041,26 +2041,25 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
         }
         double qtyc = qty[i];
 		//can't fail if already nucleated
-        double minOpen = max(0.5*h,minOpenDist);
         for (unsigned j = 0; j < newSegment.size(); ++j) {
 			if (newSegment[j]->phipeak < 0) continue; //a negative segment can't count
             if (nucleated == 0) continue;	// the null level-set can't be an impediment to nucleation		
             
 			if (elemOrNodal.compare("nodal") == 0) {
-                if (fabs(newSegment[j]->xpeak-x[i]) < minOpen) goto nextLoop;
+                if (fabs(newSegment[j]->xpeak-x[i]) < minOpenDist) goto nextLoop;
             } else {
                 double xavg = 0.5*(x[i] + x[i+1]);
-                if (fabs(newSegment[j]->xpeak - xavg) < minOpen) goto nextLoop;
+                if (fabs(newSegment[j]->xpeak - xavg) < minOpenDist) goto nextLoop;
             }
 		}
 
 		//compare against arelady accepted nucleation sites - xlist
         for (unsigned j = 0; j < xlist.size(); ++j) {
             if (elemOrNodal.compare("nodal") == 0) {
-                if (fabs(xlist[j]-x[i]) < minOpen) goto nextLoop;
+                if (fabs(xlist[j]-x[i]) < minOpenDist) goto nextLoop;
             } else {
                 double xavg = 0.5*(x[i] + x[i+1]);
-                if (fabs(xlist[j] - xavg) < minOpen) goto nextLoop;
+                if (fabs(xlist[j] - xavg) < minOpenDist) goto nextLoop;
             }
         }
 		
