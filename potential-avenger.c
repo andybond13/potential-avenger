@@ -462,6 +462,7 @@ void PotentialAvenger::calculateLevelSetGradientL( const vector<double>& dV, vec
 		gradientPhi[i] = (phiM - phiM1) / h;
 	}
     gradientPhi[0] = gradientPhi[1]; 
+    gradientPhi[Nnod-1] = 0.0; 
 	for (unsigned i = 0; i < Nelt; ++i) if (inTLS[i]) gradientPhi[i] = 0.0; 
     return;
 }
@@ -2040,7 +2041,7 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
         }
         double qtyc = qty[i];
 		//can't fail if already nucleated
-        double minOpen = max(h,minOpenDist);
+        double minOpen = max(0.5*h,minOpenDist);
         for (unsigned j = 0; j < newSegment.size(); ++j) {
 			if (newSegment[j]->phipeak < 0) continue; //a negative segment can't count
             if (nucleated == 0) continue;	// the null level-set can't be an impediment to nucleation		
