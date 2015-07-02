@@ -527,7 +527,7 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 	assert(gradientPhiL.size() == Nnod);
 	assert(gradientPhiNL.size() == Nnod);
    
-	if (localOnly == 0 && minOpenDist == 0.0 && alpha > 0) {
+	if (localOnly == 0 && minOpenDist == 0.0 && alpha > 0 && oneAtATime == 0) {
 		for (unsigned j = 0; j < Nnod-1; ++j) {
 			if (j > 0) if (d[j] == 1.0 && d[j-1] == 1.0) continue;
 			if (j > 0) if (inTLS[j] + inTLS[j-1] == 2) continue;
