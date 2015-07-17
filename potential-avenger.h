@@ -117,7 +117,7 @@ void printPointData ( const std::string& vtkFile ) const;
 void printCellData ( const std::string& vtkFile, const unsigned& Ncell ) const;
 void printGlobalInfo () const;
 void printForceDisp () const;
-void printFrags (const std::vector<double>& fragLength);
+void printFrags (const std::vector<double>& fragLength, const unsigned nSegs);
 void printSTheta ();
 void printHisto (const std::vector<double>& fragLength);
 void printClean() const;
