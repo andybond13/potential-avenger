@@ -306,11 +306,11 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 	    		//non-local-only model
     	        vector<double> Yin;
 	            for (unsigned l = 0; l < Nelt; ++l)  Yin.push_back(0.5*E*e[l]*e[l]);
-    	        string elemOrNodal="elem";
+    	        unsigned elemOrNodal = 0; //"elem";
             	numNuc = checkFailureCriteria(i,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments, pg, wg);//delete this 0.5*h rather than 2*h
     		} else {
 		    	//local / non-local hybrid model
-		    	string elemOrNodal = "nodal";
+		    	unsigned elemOrNodal = 1; //"nodal";
 		    	vector<double> gradLimit(Nnod,1.0);
 		    	numNuc = checkFailureCriteria(i,gradLimit,elemOrNodal,gradPhiL,true,true, 1.0*h, segments, pg, wg);
 		    }
@@ -1743,12 +1743,13 @@ if (segLength < 0.0) {
 	return 1;
 }
 
-void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal){
+void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const unsigned& elemOrNodal){
     //t      -time
     //x      -mesh
     //phi    -level-set calculated at this time-step
     //xnuc   -location(s) of localizations to be nucleated
     //phinuc -amount of the level-set to be set at nucleated localizations
+	//elemOrNodal - elem(0) or nodal(1)
 
     assert(xnuc.size() == phinuc.size());
     assert(xnuc.size() > 0);
@@ -1773,7 +1774,8 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc,
         assert(loc != -1);
         double proposed1 = phinuc[j] - delta*h;
         double proposed2 = phinuc[j] - (1-delta)*h;
-        if (elemOrNodal.compare("nodal") == 0) {
+        if (elemOrNodal == 1) {
+			//nodal nucleation
 			assert(delta == 0.0);
 
             inTLSnode[loc] = 1;
@@ -2007,12 +2009,12 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 	return fragLength;
 };
 
-unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<double>& criterion, const std::string elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue, std::vector<Segment*>& newSegment, const vector<double>& pg, const vector<double>& wg){
+unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<double>& criterion, const unsigned& elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue, std::vector<Segment*>& newSegment, const vector<double>& pg, const vector<double>& wg){
 
     //x              -mesh
     //phi            -level-set calculated at this time-step
     //criterion      -criterion to compare against for failure
-    //elemOrNodal    -either 'elem' or 'nodal' - is criterion elemental or nodal
+    //elemOrNodal    -either 'elem'(0) or 'nodal'(1) - is criterion elemental or nodal
     //qty            -the quantity to be compared to the criterion -e.g. s,Y
     //absOrAsIs      -whether to compare (0) qty or (1) abs(qty) to criterion
     //phiPos         -whether(1) or not(0) failure cannot occur depending on if phi>0
@@ -2023,9 +2025,9 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
     vector<double> margin;
     vector<unsigned> index;
 
-    assert(elemOrNodal.compare("elem") == 0 || elemOrNodal.compare("nodal") == 0);
+    assert(elemOrNodal == 1 || elemOrNodal == 0);
     assert(absOrAsIs == false || absOrAsIs == true);
-    if (elemOrNodal.compare("nodal") == 0) {
+    if (elemOrNodal == 1) {
         assert(x.size() == qty.size());
     } else {
         assert(x.size() == qty.size()+1);
@@ -2039,7 +2041,7 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
     vector<double> xlist;
     for (unsigned i = 0; i < qty.size(); ++i) {
         if (phiPos == 0) {//can't fail if phi>0
-            if (elemOrNodal.compare("nodal") == 0) {
+            if (elemOrNodal == 1) {
                 if (phiNL[i] > 0) continue;
             } else {
                 if (phiNL[i]>0 || phiNL[i+1]>0) continue;
@@ -2051,7 +2053,7 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
 			if (newSegment[j]->phipeak < 0) continue; //a negative segment can't count
             if (nucleated == 0) continue;	// the null level-set can't be an impediment to nucleation		
             
-			if (elemOrNodal.compare("nodal") == 0) {
+			if (elemOrNodal == 1) {
                 if (fabs(newSegment[j]->xpeak-x[i]) < minOpenDist) goto nextLoop;
             } else {
                 double xavg = 0.5*(x[i] + x[i+1]);
@@ -2061,7 +2063,7 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
 
 		//compare against arelady accepted nucleation sites - xlist
         for (unsigned j = 0; j < xlist.size(); ++j) {
-            if (elemOrNodal.compare("nodal") == 0) {
+            if (elemOrNodal == 1) {
                 if (fabs(xlist[j]-x[i]) < minOpenDist) goto nextLoop;
             } else {
                 double xavg = 0.5*(x[i] + x[i+1]);
@@ -2074,7 +2076,7 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
         }
 
         if (qtyc > criterion[i]) {
-            if (elemOrNodal.compare("nodal") == 0) {
+            if (elemOrNodal == 1) {
                 xlist.push_back(x[i]);
             } else {
                 //assume middle of element

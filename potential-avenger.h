@@ -1,7 +1,7 @@
 //potential-avenger.h
 //Andrew Stershic
 //DCML, Duke University
-//(c) 2013,2014
+//(c) 2013,2014,2015
 
 #include <objects.h>
 #include <damageModel.h>
@@ -66,7 +66,7 @@ void calculateStressesNL(const std::vector<double>& pg, const std::vector<double
 void setPeak(const std::vector<double>& phi, std::vector<Segment*>& segments, const unsigned index);
 
 //nucleate.m
-void nucleate(double t, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const std::string& elemOrNodal);
+void nucleate(double t, const std::vector<double>& xnuc, const std::vector<double>& phinuc, std::vector<Segment*>& newSegment, const unsigned& elemOrNodal);
 
 //findFragments.m
 std::vector<double> findFragments(unsigned& nfrags, const std::vector<Segment*>& segments);
@@ -74,7 +74,7 @@ std::vector<double> fragmentLength(const std::vector<Segment*>& segments);
 std::vector<double> localFragmentLength();
 
 //checkFailureCriteria.m
-unsigned checkFailureCriteria(unsigned ts, std::vector<double>& criterion, std::string elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue, std::vector<Segment*>& newSegment, const std::vector<double>& pg, const std::vector<double>& wg);
+unsigned checkFailureCriteria(unsigned ts, std::vector<double>& criterion, const unsigned& elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue, std::vector<Segment*>& newSegment, const std::vector<double>& pg, const std::vector<double>& wg);
 
 //analyzeDamage.m
 void analyzeDamage(std::vector<double>& phi, const double h, std::vector<Segment*>& newSegment);
