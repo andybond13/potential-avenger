@@ -74,7 +74,7 @@ std::vector<double> fragmentLength(const std::vector<Segment*>& segments);
 std::vector<double> localFragmentLength();
 
 //checkFailureCriteria.m
-unsigned checkFailureCriteria(unsigned ts, std::vector<double>& criterion, std::string elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue, std::vector<Segment*>& newSegment, std::vector<unsigned>& nbiter, const std::vector<double>& pg, const std::vector<double>& wg);
+unsigned checkFailureCriteria(unsigned ts, std::vector<double>& criterion, std::string elemOrNodal, const std::vector<double>& qty, bool absOrAsIs, bool phiPos, double failvalue, std::vector<Segment*>& newSegment, const std::vector<double>& pg, const std::vector<double>& wg);
 
 //analyzeDamage.m
 void analyzeDamage(std::vector<double>& phi, const double h, std::vector<Segment*>& newSegment);
@@ -90,8 +90,8 @@ void checkInTLS(const std::vector<Segment*>& segments, std::vector<unsigned>& el
 void checkConstraints(const std::vector<double>& gradientPhiL, const std::vector<double>& gradientPhiNL, const std::vector<Segment*>& segments);
 
 //update level set for nodes in TLS
-void updateLevelSetL(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg, const unsigned& j);
-void updateLevelSetNL(const unsigned& i, std::vector<unsigned>& nbiter, std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
+void updateLevelSetL(std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg, const unsigned& j);
+void updateLevelSetNL(std::vector<Segment*>& segments, const std::vector<double>& pg, const std::vector<double>& wg);
 
 double H(const unsigned, const double);
 double dH(const unsigned, const double);

@@ -180,7 +180,6 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     gradPhiNL = vector<double>(Nnod,0.0);
     gradPhiNLelem = vector<double>(Nelt,0.0);
 
-    vector<unsigned> nbiter = vector<unsigned>(Ntim,0);
     nfrags = vector<unsigned>(Ntim,0);
     _numFrag = 0;
     vector<Segment*> segments;
@@ -227,7 +226,6 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     a[Nnod-1] = 0;
     for (unsigned j = 1; j < Nnod-1; ++j)  a[j] = A*(s[j] - s[j-1]) /m[j];
 
-    nbiter[0] = 0;
     analyzeDamage(phiNL,h,segments);
     unsigned len = 0;
     for (unsigned l = 0; l < segments.size(); ++l) {
@@ -274,11 +272,11 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 		//local
 		for (unsigned j = 0; j < Nelt; ++j) {
 			unsigned status = calculateStressesL(pg,wg,j); 
-        	if (status == 1) updateLevelSetL(i,nbiter,segments,pg,wg,j);
+        	if (status == 1) updateLevelSetL(segments,pg,wg,j);
 		}
 		//non-local / TLS
 		if (localOnly == 0) {
-        	updateLevelSetNL(i,nbiter,segments,pg,wg);
+        	updateLevelSetNL(segments,pg,wg);
         	if (nucleated > 0) setPeakAll(phiNL,segments); 
     		analyzeDamage(phiNL,h,segments);
         	for (unsigned j = 0; j < Nnod; ++j)  phiNL[j] = max(phiNL[j], phiNL_1[j]);
@@ -301,12 +299,12 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     	        vector<double> Yin;
 	            for (unsigned l = 0; l < Nelt; ++l)  Yin.push_back(0.5*E*e[l]*e[l]);
     	        string elemOrNodal="elem";
-            	numNuc = checkFailureCriteria(i,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments, nbiter, pg, wg);//delete this 0.5*h rather than 2*h
+            	numNuc = checkFailureCriteria(i,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments, pg, wg);//delete this 0.5*h rather than 2*h
     		} else {
 		    	//local / non-local hybrid model
 		    	string elemOrNodal = "nodal";
 		    	vector<double> gradLimit(Nnod,1.0);
-		    	numNuc = checkFailureCriteria(i,gradLimit,elemOrNodal,gradPhiL,true,true, 1.0*h, segments, nbiter, pg, wg);
+		    	numNuc = checkFailureCriteria(i,gradLimit,elemOrNodal,gradPhiL,true,true, 1.0*h, segments, pg, wg);
 		    }
         }
 
@@ -982,7 +980,7 @@ double PotentialAvenger::d2H (const unsigned j, const double phi) {
 	return 0;
 }    
 
-void PotentialAvenger::updateLevelSetL( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg, const unsigned& j) {
+void PotentialAvenger::updateLevelSetL(vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg, const unsigned& j) {
 
      //for (unsigned j = 0; j < Nelt; ++j) {
         unsigned nodesInTLS = 0;
@@ -996,7 +994,7 @@ void PotentialAvenger::updateLevelSetL( const unsigned& i, vector<unsigned>& nbi
 	 return;
 }
 
-void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nbiter, vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg ) {
+void PotentialAvenger::updateLevelSetNL(vector<Segment*>& segments, const vector<double>& pg, const vector<double>& wg ) {
 	//non-local nodes   
 
 	//save phiNL beforehand
@@ -1024,7 +1022,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
         
         double err_crit = 1e15;
         double dphi = 0;
-        nbiter[i] = 0;
+        unsigned nbiter = 0;
         double residu = 0;
 //cout << "int: [" << sbegin << "," << send<< "]  dmax = " << dm.dval(segments[l].phipeak) << "  phimax = " << segments[l].phipeak << "  ," << 
 //"  x= " << segments[l].xpeak << "   slope = " << segments[l].slope <<
@@ -1040,8 +1038,8 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 		unsigned count = 0;
 		double err_tol = 1.e-6;
 		double Ycavg = 0.0; 
-        while (err_crit > err_tol && nbiter[i] < iter_max) {
-            nbiter[i]++;
+        while (err_crit > err_tol && nbiter < iter_max) {
+            nbiter++;
 			
 			double residu_Y = 0.0;
 			double tangent_Y = 0.0;
@@ -1049,10 +1047,10 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 			double phimax = 0.0; 
             double phiminY = 0.0;
 			double phimaxY = 0.0;
-            unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+            unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
 			
 			if (status == 0) goto next;
-			if (YbarmYc < 0 && nbiter[i] == 1) goto next;
+			if (YbarmYc < 0 && nbiter == 1) goto next;
 			if (segments[l]->phimin >= lc) goto next;
 
             residu = residu_Y;
@@ -1093,7 +1091,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 		//Bisection search to finish off convergence calculation
 		bool hasPos;
 		bool hasNeg;
-		if (nbiter[i] >= limit) {
+		if (nbiter >= limit) {
 			hasPos = false;
 			hasNeg = false;
 			for (unsigned j = 0; j < residuV.size(); ++j) {
@@ -1104,7 +1102,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
         } else {
             hasNeg = false; hasPos = false;
         }
-		if (nbiter[i] >= limit && hasPos && hasNeg) {
+		if (nbiter >= limit && hasPos && hasNeg) {
             double residu_Y = 0.0;
             double tangent_Y = 0.0;
             double phimin = 0.0;
@@ -1129,7 +1127,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 				segments[l]->phipeak += dphi;
 				segments[l]->phimin += dphi;
    	         	for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
 				phimaxV.push_back(segments[l]->phipeak);
 				residuV.push_back(residu_Y);
 				YcavgV.push_back(Ycavg);
@@ -1138,7 +1136,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 
 
 		//finish with linear interpolation
-		if (nbiter[i] >= limit) {
+		if (nbiter >= limit) {
             double residu_Y = 0.0;
             double tangent_Y = 0.0;
             double phimin = 0.0;
@@ -1159,7 +1157,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
                 segments[l]->phipeak += dphi;
                 segments[l]->phimin += dphi;
                 for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
 				phimaxV.push_back(segments[l]->phipeak);
 				residuV.push_back(residu_Y);
 				YcavgV.push_back(Ycavg);
@@ -1192,7 +1190,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
             	segments[l]->phipeak += dphi;
                 segments[l]->phimin += dphi;
                 for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-                calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+                calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
                 phimaxV.push_back(segments[l]->phipeak);
                 residuV.push_back(residu_Y);
 				YcavgV.push_back(Ycavg);
@@ -1219,7 +1217,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 				segments[l]->phimin += setpeak - endpeak;
 				for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += setpeak - endpeak;
 			}
-			calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
+			calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
 
 
 			assert(phimaxV.size() == residuV.size()); assert(residuV.size() == YcavgV.size()); 
@@ -1227,7 +1225,7 @@ void PotentialAvenger::updateLevelSetNL( const unsigned& i, vector<unsigned>& nb
 		}//end crawl
 /**/
 		assert(YbarmYc/Ycavg <= 1.e-6);
-		assert(nbiter[i] < iter_max || count > 0);
+		assert(nbiter < iter_max || count > 0);
         next:
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
@@ -2001,7 +1999,7 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 	return fragLength;
 };
 
-unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<double>& criterion, const std::string elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue, std::vector<Segment*>& newSegment, vector<unsigned>& nbiter, const vector<double>& pg, const vector<double>& wg){
+unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<double>& criterion, const std::string elemOrNodal, const std::vector<double>& qty, const bool absOrAsIs, const bool phiPos, const double failvalue, std::vector<Segment*>& newSegment, const vector<double>& pg, const vector<double>& wg){
 
     //x              -mesh
     //phi            -level-set calculated at this time-step
@@ -2146,6 +2144,7 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
     newSegment.clear();
     newSegment.resize(nSegs*2);
 	for (unsigned i = 0; i < nSegs*2; ++i) newSegment[i] = new Segment(); 
+	
 	for (unsigned i = 0; i < nSegs; ++i) {
 		newSegment[2*i]->YbarmYc = YbarmYc[i];
 		newSegment[2*i]->slope = 1;
