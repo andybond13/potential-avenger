@@ -1,5 +1,5 @@
 #makefile
-COMPILER = g++-4
+COMPILER = g++-5
 COMPILER_FLAGS = -O2 -Wall
 LIB = -L/sw/opt/boost-1_55/lib/ -lboost_random 
 SOURCES = $(wildcard *.c) 

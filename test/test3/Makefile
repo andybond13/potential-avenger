@@ -1,7 +1,7 @@
 #makefile
-COMPILER = g++-4
 COMPILER_FLAGS = -g -O2
 LIB = 
+COMPILER = g++-5
 SOURCES = $(wildcard *.c) 
 INC = -I .
 OBJECTS = $(SOURCES:.c=.o)
