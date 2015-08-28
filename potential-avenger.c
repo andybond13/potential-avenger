@@ -81,6 +81,10 @@ template <typename T> T min(const vector<T>& in) {
     return min;
 }
 
+template <typename T> T min(const T& a, const T& b, const T& c, const T& d) {
+	return min( min(a,b), min(c,d) );
+}
+
 template <typename T> T max(const vector<T>& in) {
     assert(in.size() > 0);
     T max = in[0];
@@ -88,6 +92,10 @@ template <typename T> T max(const vector<T>& in) {
         if (in[i] > max) max = in[i];
     }
     return max;
+}
+
+template <typename T> T max(const T& a, const T& b, const T& c, const T& d) {
+	return max( max(a,b), max(c,d) );	
 }
 
 double dotProduct(const vector<double> a, const vector<double> b) {
@@ -2185,15 +2193,13 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 		for (unsigned j = i + 1; j < newSegment.size(); ++j) {
 			if (newSegment[i]->size() == 0) continue;
 			if (newSegment[j]->size() == 0) continue;
-			vector<int> endpoints;
-			endpoints.push_back(newSegment[i]->begin());
-			endpoints.push_back(newSegment[i]->end());
-			endpoints.push_back(newSegment[j]->begin());
-			endpoints.push_back(newSegment[j]->end());
-			sort(endpoints.begin(),endpoints.end());
-			int L1 = abs(static_cast<int>(newSegment[i]->begin()) - static_cast<int>(newSegment[i]->end()));	
-			int L2 = abs(static_cast<int>(newSegment[j]->begin()) - static_cast<int>(newSegment[j]->end()));
-			int dist = endpoints.back() - endpoints.front();
+			int i1 = newSegment[i]->begin();
+			int i2 = static_cast<int>(newSegment[i]->end());
+			int j1 = newSegment[j]->begin();
+			int j2 = static_cast<int>(newSegment[j]->end());
+			int L1 = abs(i1 - i2);
+			int L2 = abs(j1 - j2);
+			int dist = max(i1,i2,j1,j2) - min(i1,i2,j1,j2);
 			unsigned ii = (i - (i % 2))/2;
 			unsigned jj = (j - (j % 2))/2;
 			//if overlap, fold segments together
