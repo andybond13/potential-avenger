@@ -25,7 +25,7 @@ double Segment::length() {
 }
 
 int Segment::begin() {
-    std::sort(indices.begin(),indices.end());
+	if (!is_sorted(indices.begin(),indices.end()))    std::sort(indices.begin(),indices.end());
     if (indices.size() == 0) return -1;
     return indices[0];
 }
@@ -41,18 +41,18 @@ int Segment::begin() const{
 }
 
 unsigned Segment::second() {
-    std::sort(indices.begin(),indices.end());
+	if (!is_sorted(indices.begin(),indices.end()))     std::sort(indices.begin(),indices.end());
     assert(indices.size() >= 2);
     return indices[1];
 }
 
 unsigned Segment::end() {
-    std::sort(indices.begin(),indices.end());
+	if (!is_sorted(indices.begin(),indices.end()))    std::sort(indices.begin(),indices.end());
     return indices.back();
 }
 
 unsigned Segment::penult() {
-    std::sort(indices.begin(),indices.end());
+	if (!is_sorted(indices.begin(),indices.end()))     std::sort(indices.begin(),indices.end());
     assert(indices.size() >= 2);
     return indices[indices.size()-2];
 }
