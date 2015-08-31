@@ -183,7 +183,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     phiNL = phiIn;
 
     phiNL_1 = vector<double>(Nnod,0);
-    phidot = vector<vector<double> >(Ntim);
+    phidot = vector<double>(0);
     gradPhiL = vector<double>(Nnod,0.0);
     gradPhiNL = vector<double>(Nnod,0.0);
     gradPhiNLelem = vector<double>(Nelt,0.0);
@@ -240,7 +240,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
         if (segments[l]->size() == 0) continue;
         len++;
     }
-    phidot[0].resize(len);
+    phidot.resize(len);
 
     //print data to file
     vector<double>fragLength = findFragments(nfrags[0],segments);
@@ -255,6 +255,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 //cout << "t = " << t[i] << endl;
 
 		Ybar.assign(Nelt,0.0);
+		phidot.clear();
 
         //Copy kinematic variables to "old"
         u_1 = vector<double>(Nnod,0); u_1 = u; u.assign(Nnod,0.0);
@@ -344,11 +345,11 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
                 if (segments[j]->size() == 0) continue;
                 len++;
             }
-            phidot.at(i).resize(len);
-            phidot.at(i).at(index) = (phiNL[smid] - phiNL_1[smid])/dt;
-            if (numNuc > 0) phidot.at(i).at(index) = min(phidot.at(i).at(index), 1.0); //"hack", but for phidot plot, I don't need to see nucleation as 100000
-            if (phidot[i][index] * dt > h*1.01 ) {
-                printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t[i],l,phidot[i][index]*dt/h);
+            phidot.resize(len);
+            phidot.at(index) = (phiNL[smid] - phiNL_1[smid])/dt;
+            if (numNuc > 0) phidot.at(index) = min(phidot.at(index), 1.0); //"hack", but for phidot plot, I don't need to see nucleation as 100000
+            if (phidot[index] * dt > h*1.01 ) {
+                printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t[i],l,phidot[index]*dt/h);
             }
         }
 
@@ -2672,7 +2673,7 @@ void PotentialAvenger::printGlobalInfo () const {
 		fprintf( pFile, "%12.3e", tot_energy );
 		fprintf( pFile, "%12.3e", dissip_energy_local );
 		fprintf( pFile, "%12.3e", dissip_energy_TLS );
-		for (unsigned i = 0; i < phidot[_Nt].size(); ++i) fprintf( pFile, "%12.3e", phidot[_Nt].at(i)/sqrt(E/rho)  );
+		for (unsigned i = 0; i < phidot.size(); ++i) fprintf( pFile, "%12.3e", phidot.at(i)/sqrt(E/rho)  );
         fprintf( pFile, "\n" );
 	fclose( pFile );
     }

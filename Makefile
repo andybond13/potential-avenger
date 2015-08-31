@@ -1,7 +1,7 @@
 #makefile
-COMPILER_FLAGS = -g -Wall
 LIB = -L/sw/opt/boost-1_55/lib/ -lboost_random 
 COMPILER = g++-5
+COMPILER_FLAGS = -g -O3 -Wall -std=c++11
 SOURCES = $(wildcard *.c) 
 INC = -I . -I/sw/opt/boost-1_55/include/
 OBJECTS = $(SOURCES:.c=.o)

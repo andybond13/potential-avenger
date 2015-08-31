@@ -54,8 +54,9 @@ std::vector<double> gradPhiL;
 std::vector<double> gradPhiNL;
 std::vector<double> gradPhiNLelem;
 std::vector<double> altFragLength;
+std::vector<double> phidot;
 unsigned nucleated;
-std::vector<std::vector<double> > d_quad,d_quad_wt,d_quad_phi,phidot;
+std::vector<std::vector<double> > d_quad,d_quad_wt,d_quad_phi;
 double EPS,Fboundary;
 
 void printRunInfo();
