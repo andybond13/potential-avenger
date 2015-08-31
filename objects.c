@@ -4,54 +4,7 @@
 //(c) 2013,2014
 
 #include <objects.h>
-/*
-Fragment::Fragment(){
-    localLength = 0.0;
-};
 
-Fragment::Fragment(const Fragment& f){
-    //copy constructor
-    fragSegs.clear();
-    localLength = f.localLength;
-    for (unsigned i = 0; i < f.fragSegs.size(); ++i) fragSegs.push_back(f.fragSegs[i]);
-};
-
-Fragment::~Fragment(){};
-
-double Fragment::length() {
-    double len = 0;
-
-
-    for (unsigned i = 0; i < fragSegs.size(); ++i) len += fragSegs[i]->length(); 
-    return len + localLength;
-}
-
-int Fragment::begin() {
-    std::vector<unsigned> begins;
-    for (unsigned i = 0; i < fragSegs.size(); ++i) begins.push_back(fragSegs[i]->begin());
-    std::sort(begins.begin(),begins.end());
-    if (begins.size() == 0) return -1;
-    return begins.front();
-}
-
-unsigned Fragment::end() {
-    std::vector<unsigned> ends;
-    for (unsigned i = 0; i < fragSegs.size(); ++i) ends.push_back(fragSegs[i]->end());
-    std::sort(ends.begin(),ends.end());
-    if (ends.size() == 0) return 0;
-    else return ends.back();
-}
-
-void Fragment::add(Segment* in) {
-    fragSegs.push_back(in);
-    return;
-}
-
-void Fragment::clear() {
-    fragSegs.clear();
-    return;
-}
-*/
 Segment::Segment(double in1, double in2, int in3) {
     xpeak = in1;
     phipeak = in2;
@@ -78,9 +31,10 @@ int Segment::begin() {
 }
 
 int Segment::begin() const{
-    assert(indices.size() > 0);
+	unsigned indSize = indices.size();
+    assert(indSize > 0);
     int min = indices[0];
-    for (unsigned i = 0; i < indices.size(); ++i) {
+    for (unsigned i = 0; i < indSize; ++i) {
         if (indices[i] < min) min = indices[i];
     }
     return min;
@@ -104,10 +58,11 @@ unsigned Segment::penult() {
 }
 
 unsigned Segment::size() {
-	if (indices.size() == 1) {
+	unsigned indSize = indices.size();
+	if (indSize == 1) {
 		if (indices[0] == -1) return 0;
     }
-	return indices.size();
+	return indSize;
 }
 
 void Segment::setPeak(const std::vector<double>& x, const std::vector<double>& phi) {
