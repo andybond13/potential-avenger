@@ -504,6 +504,7 @@ void PotentialAvenger::checkInTLS(const vector<Segment*>& segments, vector<unsig
     //check nodes; 1 = in TLS zone, 0 = not
     if (nucleated > 0) {
         for (unsigned index = 0; index < Nnod; ++index) {
+			if (nodes_old[index] == 1) {nodes[index] = 1;continue;}
 			//compare to phiL on both sides (if possible). inTLS if phiNL > max(phiL)
 			double phiLocal = 0.0;
 			if (index > 0) phiLocal = max(phiLocal, phiL[index-1]);
@@ -900,7 +901,6 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
 		if (isnan(Y[j]) == 1) Y[j] = Ycv[j];
 		assert(isnan(Y[j]) == 0);
 		if (isinf(Y[j]) == 1) Y[j] = Ycv[j];
-		if (isinf(Y[j]) == -1) Y[j] = Ycv[j];
 		assert(isinf(Y[j]) == 0);
 
 		if (Ybar[j] == 0.0) {
