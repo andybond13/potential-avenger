@@ -25,6 +25,8 @@ class Segment{
     unsigned second();
     unsigned end();
     unsigned penult();
+	void beginEnd(unsigned& min, unsigned& max);
+	void beginEnd(int& min, int& max);
     double length();
     std::vector<int> indices;
     double xpeak;   //listmax

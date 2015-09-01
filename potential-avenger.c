@@ -322,7 +322,9 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 		if (numNuc > 0) {
 			for (unsigned l = nSegs; l < segments.size(); ++l) {
 				segments.at(l)->YbarmYc = 0.0;
-				for (unsigned j = max(0,static_cast<int>(segments[l]->begin())-2); j <= min(segments[l]->end()+1,Nelt-1); ++j) Ybar[j] = 1.0; 
+				int sbegin, send;
+				segments[l]->beginEnd(sbegin,send);
+				for (unsigned j = max(0,sbegin-2); j <= min(static_cast<unsigned>(send+1),Nelt-1); ++j) Ybar[j] = 1.0; 
 			}
 		}
 
@@ -1011,9 +1013,9 @@ void PotentialAvenger::updateLevelSetNL(vector<Segment*>& segments, const vector
  
     for (unsigned l = 0; l < segments.size(); ++l) {
         if (segments[l]->size()==0) continue;//segments.erase(segments.begin()+l);
-        unsigned sbegin = segments[l]->begin();
-        unsigned send = segments[l]->end();
-        
+        unsigned sbegin, send;
+		segments[l]->beginEnd(sbegin,send);       
+ 
 		//clear Ybar
 		segments[l]->YbarmYc = 0.0;
 
@@ -1255,8 +1257,8 @@ void PotentialAvenger::setPeakAll(const vector<double>&phiIn, vector<Segment*>& 
 }
 
 void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& segments, const unsigned index) {
-	unsigned sbegin = segments[index]->begin();
-	unsigned send = segments[index]->end();	
+	unsigned sbegin, send;
+	segments[index]->beginEnd(sbegin,send);
 	double slope = static_cast<double>(segments[index]->slope);
 	double a1,a2,b1,b2,xint,phiint;
     unsigned search = 1;
@@ -2196,10 +2198,9 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 		for (unsigned j = i + 1; j < newSegment.size(); ++j) {
 			if (newSegment[i]->size() == 0) continue;
 			if (newSegment[j]->size() == 0) continue;
-			int i1 = newSegment[i]->begin();
-			int i2 = static_cast<int>(newSegment[i]->end());
-			int j1 = newSegment[j]->begin();
-			int j2 = static_cast<int>(newSegment[j]->end());
+			int i1, i2, j1, j2;
+			newSegment[i]->beginEnd(i1,i2);
+			newSegment[j]->beginEnd(j1,j2);
 			int L1 = abs(i1 - i2);
 			int L2 = abs(j1 - j2);
 			int dist = max(i1,i2,j1,j2) - min(i1,i2,j1,j2);
