@@ -65,7 +65,7 @@ int main(int argc, const char* argv[]) {
 	vector<double> phiIn = vector<double>(Nnod, -1.0);
 	bool vbc = true;
 
-	double h = 1.0/static_cast<double>(Nelt);
+	double h = 1.0/static_cast<double>(Nelt) * L;
 	//double alfa = 1.0 - pow(1.0 - L * strain_rate * sqrt(rho / (2*Yc)),2);
 	//double qty = sqrt(2.0 * Yc * (1.0 - alfa)/E) * static_cast<double>(startWithLoad);
 	vector<double> xIn = vector<double>(Nnod,0);
