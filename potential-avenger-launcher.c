@@ -62,7 +62,7 @@ int main(int argc, const char* argv[]) {
 	pg.push_back((1-sqrt(3)/3)/2); pg.push_back((1+sqrt(3)/3)/2); 
 	vector<double> wg;
 	wg.push_back(0.5); wg.push_back(0.5); 
-	vector<double> phiIn = vector<double>(Nnod, -1.0);
+	vector<double> phiIn = vector<double>(Nnod, -1.0*L);
 	bool vbc = true;
 
 	double h = 1.0/static_cast<double>(Nelt) * L;
@@ -96,7 +96,7 @@ int main(int argc, const char* argv[]) {
 		vIn[j] = static_cast<double>(vbc) * strain_rate * xIn[j];
 //		phiIn[j] = 2.0 * h - xIn[j];
 	}	
-	vIn[Nnod-1] = strain_rate;
+	vIn[Nnod-1] = strain_rate*L;
 
 	vector<Segment*> segIn;
 //	Segment* seg1 = new Segment(xIn[0], phiIn[0], -1);
