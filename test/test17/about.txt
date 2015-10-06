@@ -1,0 +1,3 @@
+#test17 about.txt
+
+This test tests the displacement result of the problem of a one-dimensional bar with an initial damage of 2h at x=0 and therefore one segment. Non-local only with single iteration (explicit).

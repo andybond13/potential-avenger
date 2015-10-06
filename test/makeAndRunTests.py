@@ -17,6 +17,7 @@ init()
 directory = "."
 dirs = os.listdir(directory)
 success = 0
+allowed = 0
 count = 0
 realdirs = []
 for entry in dirs:
@@ -74,7 +75,11 @@ for entry in realdirs:
 	if (result == 1):
 		print(Fore.GREEN+"*passed"+Fore.RESET)
 	else:
-		print(Fore.RED+"*failed"+Fore.RESET)
+		if (entry == "test19"):
+			print(Fore.YELLOW+"*different"+Fore.RESET)
+			allowed += 1
+		else:
+			print(Fore.RED+"*failed"+Fore.RESET)
 	assert(result == 1 or result == 0)
 	success += result
 
@@ -83,3 +88,5 @@ if (success == count):
 	print(Fore.GREEN+str(success)+" passed tests of "+str(count)+Fore.RESET)
 else:
 	print(Fore.RED+str(success)+" passed tests of "+str(count)+Fore.RESET)
+	if (allowed > 0):
+		print(Fore.YELLOW+str(allowed)+" tests allowed to differ"+Fore.RESET)	
