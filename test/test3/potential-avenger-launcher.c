@@ -18,7 +18,7 @@ void writeDisplacements (const vector<double>& uIn, const double& L) {
 }
 
 int main(int argc, const char* argv[]) {
-    assert(argc == 16);
+    assert(argc == 19);
  
 	//read input from potential-avenger-launcher.py
     double strain_rate = atof(argv[1]);
@@ -26,19 +26,22 @@ int main(int argc, const char* argv[]) {
     double end_t = atof(argv[3]);
     unsigned Nelt = atoi(argv[4]);
     double lc = atof(argv[5]);
-    unsigned startWithLoad = atoi(argv[6]);
-    unsigned printVTK = atoi(argv[7]);
-    int oneAtATime = atoi(argv[8]);
-    double minOpenDist = atof(argv[9]);
-    double alpha = atof(argv[10]);
-    unsigned localOnly = atoi(argv[11]);
-    unsigned visualizeCracks = atoi(argv[12]);
-    unsigned fullCompression = atoi(argv[13]);
-    string sm = string(argv[14]);
-	unsigned elemDeath = atoi(argv[15]);
+    double alpha = atof(argv[6]);
+    double CV = atof(argv[7]);
+    unsigned startWithLoad = atoi(argv[8]);
+    unsigned printVTK = atoi(argv[9]);
+    string sm = string(argv[10]);
+    int oneAtATime = atoi(argv[11]);
+    double minOpenDist = atof(argv[12]);
+    unsigned TLSoption = atoi(argv[13]);
+    unsigned visualizeCracks = atoi(argv[14]);
+    unsigned fullCompression = atoi(argv[15]);
+	unsigned elemDeath = atoi(argv[16]);
+	unsigned frontExtension = atoi(argv[17]);
+	unsigned maxIteration = atoi(argv[18]);
     string path = ".";
  
-    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks, fullCompression, sm, elemDeath, path);
+    PotentialAvenger pa = PotentialAvenger(strain_rate, ts_refine, end_t, Nelt, lc, printVTK, oneAtATime, minOpenDist, alpha, TLSoption, visualizeCracks, fullCompression, sm, elemDeath, frontExtension, maxIteration, path);
 
 	//"serious" hard-coded input
 	unsigned Nnod = Nelt + 1;
@@ -54,7 +57,7 @@ int main(int argc, const char* argv[]) {
 	vector<double> phiIn = vector<double>(Nnod, -1.0);
 	bool vbc = true;
 
-	double h = 1.0/static_cast<double>(Nelt);
+	double h = 1.0/static_cast<double>(Nelt) * L;
 	double alfa = 1.0 - pow(1.0 - L * strain_rate * sqrt(rho / (2*Yc)),2);
 	double qty = sqrt(2.0 * Yc * (1.0 - alfa)/E) * static_cast<double>(startWithLoad);
 	double e0 = qty;

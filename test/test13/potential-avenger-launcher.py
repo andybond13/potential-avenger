@@ -26,25 +26,25 @@ print "end_t=",end_t
 #Nelt = 1/lc * 8 
 Nelt = 1000
 printVTK = 0
-oneAtATime = 0
-minOpenDist = 0 
-#(SQRT) hardening coefficient bounded by 0 & 1: 0-very brittle, 1-very plastic
-#(LIN) lambda = 2*sigmac*lc/(E*wc); wc = 2 * Gc/sigmac; sigmac^2 = 2*E*Yc; lambda = 2*Yc*lc/Gc
-##alpha = 1- 0.2*1*Yc/(8*DE_CZM[i])   #2*Yc*lc/Gc
-##alpha = max(0,1- NF_CZM[i]*Yc*1*0.2*lc*4/3/(DE_CZM[i]*1) )  #2*Yc*lc/Gc
 alpha = 2*Yc*lc/Gc
 print alpha
-assert(alpha <= 0.5)
-#alpha = 0.0;
-sm = "LIN"         #SQRT - match sqrt cohesive TSL or LIN - match linear cohesive TSL
-localOnly = 0   #1 for local only, 0 for local/non-local
-visualizeCracks = 0 #1 to visualize cracks (elements disappear when d = 1)
-fullCompression = 0 #0: s = E*e*(1-d) always, 1: s=E*e*(1-d) in tension, s=E*e in compression
-elemDeath = 1 #0: element death not on, 1: element death on
+assert(alpha < 0.5)
 
-#for Nelt in list:
-print lc
+CV = 0.0
+ 
+#model options
+sm = "LIN"          #SQRT - match sqrt cohesive TSL or LIN - match linear cohesive TSL
+oneAtATime = 0      #0 or 1. If 1, cracks open 1 per timestep. If 0, all can open at once
+minOpenDist = 0     #minimum distance between two non-local insertions
+TLSoption = 1       #0, 1, or 2. 0 for local only. 1 for local/non-local. 2 for non-local-only.
+visualizeCracks = 0 #1 to visualize cracks (elements disappear when d = 1)
+fullCompression = 0 #0 or 1. If 0, s = E*e*(1-d) always, if 1: s=E*e*(1-d) in tension, s=E*e in compression
+elemDeath = 1       #0 or 1. If 0, element death not on, if 1: element death on
+frontExtension = 1  #0, 1, or 2. If 0, explicit delay-damage front extension. If 1, implicit-type NR solve. If 2, explicit NR-style solve (use with maxIteration = 1 for example) 
+maxIteration = 20   #>= 1. If 1, single iteration.
+ 
 #run program
-command = prefix+"./potential-avenger.exe %f %f %f %u %f %u %u %u %f %f %u %u %u %s %u" % (strain_rate, ts_refine, end_t, Nelt, lc, startWithLoad, printVTK, oneAtATime, minOpenDist, alpha, localOnly, visualizeCracks,fullCompression,sm,elemDeath)+suffix
+command = "./potential-avenger.exe %f %f %f %u %f %f %f %u %u %s %u %f %u %u %u %u %u %u" % (strain_rate, ts_refine, end_t, Nelt, lc, alpha, CV, startWithLoad, printVTK, sm, oneAtATime, minOpenDist, TLSoption, visualizeCracks, fullCompression, elemDeath, frontExtension, maxIteration)
+
 print command
 os.system(command)

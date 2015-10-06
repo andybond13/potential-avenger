@@ -3,7 +3,7 @@ COMPILER = g++-5
 COMPILER_FLAGS = -O2 -Wall
 LIB = -L/sw/opt/boost-1_55/lib/ -lboost_random -fopenmp -lcilkrts 
 SOURCES = $(wildcard *.c) 
-INC = -I . -I/sw/opt/boost-1_55/include/ -fopenmp -fcilkplus
+INC = -I . -I/sw/opt/boost-1_55/include/
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = potential-avenger.exe
 
