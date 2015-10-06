@@ -9,7 +9,7 @@
 
 using namespace std;
 
-PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& in13, unsigned& in14, string& path){
+PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, string& in13, unsigned& in14, unsigned& in15, unsigned& in16, string& path){
     strain_rate = in0;
     ts_refine = in1;
     end_t = in2;
@@ -19,11 +19,13 @@ PotentialAvenger::PotentialAvenger(double& in0, double& in1, double& in2, unsign
     oneAtATime = in7;
     minOpenDist = in8;
 	alpha = in9;
-    localOnly = in10;
+    TLSoption = in10;
     visualizeCracks = in11;
     fullCompression = in12;
 	sm = in13;
 	elemDeath = in14;
+	frontExtension = in15;
+	maxIteration = in16;
     _path = path + "/results";
 
     _numFrag = 0;    
@@ -188,7 +190,8 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     gradPhiNL = vector<double>(Nnod,0.0);
     gradPhiNLelem = vector<double>(Nelt,0.0);
 
-    nfrags = vector<unsigned>(Ntim,0);
+	nfrags = vector<unsigned>(1,0);  
+
     _numFrag = 0;
     vector<Segment*> segments;
 	for (unsigned j = 0; j < segIn.size(); ++j) segments.push_back(segIn.at(j));
@@ -204,9 +207,12 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     xe = vector<double>(Nnod,0);
     for (unsigned j = 0; j < Nelt; ++j) xe[j] = 0.5*(x[j] + x[j+1]);
 
-    t = vector<double>(Ntim,0);
-    for (unsigned j = 0; j < Ntim; ++j) t[j] = static_cast<double>(j)*dt;
-
+	if (frontExtension == 0) {
+		t = vector<double>(1,0.0);     
+	} else {
+    	t = vector<double>(Ntim,0);
+    	for (unsigned j = 0; j < Ntim; ++j) t[j] = static_cast<double>(j)*dt;
+	}
     // Initially the bar is loaded and all elements are at Yc
     // A tls is placed on the first element, obviously it satifies
     //   Ybar = Yc
@@ -228,7 +234,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     //calculate stresses
 	for (unsigned j = 0; j < Nelt; ++j) calculateStressesL(pg,wg,j);
 
-    if (localOnly == 0) calculateStressesNL(pg,wg,segments);
+    if (TLSoption != 0) calculateStressesNL(pg,wg,segments);
     //acceleration
     a[0] = 0;
     a[Nnod-1] = 0;
@@ -249,10 +255,39 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     printFrags(fragLength,segments.size());
     printGlobalInfo();
 
-    //time-integration loop
-    for (unsigned i = 1; i < Ntim; ++i){
+	assert(_Nt == 0);
+	assert(t.size() >= _Nt + 1);   
+
+	double dmin_old = 0.0;
+ 
+	//time-integration loop
+	while (t.at(_Nt) < end_t) {	//    for (unsigned i = 1; i < Ntim; ++i){
         _Nt++;
 //cout << "t = " << t[i] << endl;
+
+		//if delay-damage model, find new dt
+		if (frontExtension == 0) {
+			//find time-step - damage
+     		double dmin = min(d);
+     		assert( dmin + 1.0e-8 > dmin_old);
+     		if (dmin > dmin_old) dt =  cfl * h/c / sqrt(1.0 - dmin);
+			dmin_old = dmin;
+     		dt = min(cfl * h/c, dt);
+ 
+     		//find time-step - level-set
+    		vector<double> dphi(phiNL.size(),0);
+     		if (_Nt > 1) {
+         		double maxdphi = 0.0;
+        		if (phidot.size() > 0) maxdphi = max(phidot);
+        		if (maxdphi > 0) {
+             		double dtL = h / maxdphi;
+             		dt = min(dt, dtL);
+         		}
+     		}
+ 
+     		//define time
+     		t.push_back(t.back() + dt);
+		} //end delay-damage find new dt
 
 		Ybar.assign(Nelt,0.0);
 		phidot.clear();
@@ -284,7 +319,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
         	if (status == 1) updateLevelSetL(segments,pg,wg,j);
 		}
 		//non-local / TLS
-		if (localOnly == 0) {
+		if (TLSoption != 0) {
         	updateLevelSetNL(segments,pg,wg);
         	if (nucleated > 0) setPeakAll(phiNL,segments); 
     		analyzeDamage(phiNL,h,segments);
@@ -302,19 +337,23 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
         //check for nucleation
 		unsigned numNuc = 0;
 		unsigned nSegs = segments.size();
-        if (localOnly == 0) {
-	    	if (alpha == 0) {
+        if (TLSoption != 0) {
+	    	if (TLSoption == 2) {
 	    		//non-local-only model
     	        vector<double> Yin;
 	            for (unsigned l = 0; l < Nelt; ++l)  Yin.push_back(0.5*E*e[l]*e[l]);
     	        unsigned elemOrNodal = 0; //"elem";
-            	numNuc = checkFailureCriteria(i,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments, pg, wg);//delete this 0.5*h rather than 2*h
-    		} else {
+            	numNuc = checkFailureCriteria(_Nt,Ycv,elemOrNodal,Yin,false,false,1.0*h,segments, pg, wg);//delete this 0.5*h rather than 2*h
+    		} else if (TLSoption == 1){
 		    	//local / non-local hybrid model
 		    	unsigned elemOrNodal = 1; //"nodal";
 		    	vector<double> gradLimit(Nnod,1.0);
-		    	numNuc = checkFailureCriteria(i,gradLimit,elemOrNodal,gradPhiL,true,true, 1.0*h, segments, pg, wg);
-		    }
+		    	numNuc = checkFailureCriteria(_Nt,gradLimit,elemOrNodal,gradPhiL,true,true, 1.0*h, segments, pg, wg);
+		    } else {
+				//unsupported option
+				cout << " unsupported TLSoption : " << TLSoption << endl;
+				assert(1==0);
+			}
         }
 
         //enforce phi constraints - update segments
@@ -351,7 +390,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
             phidot.at(index) = (phiNL[smid] - phiNL_1[smid])/dt;
             if (numNuc > 0) phidot.at(index) = min(phidot.at(index), 1.0); //"hack", but for phidot plot, I don't need to see nucleation as 100000
             if (phidot[index] * dt > h*1.01 ) {
-                printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t[i],l,phidot[index]*dt/h);
+                printf("level-set front advancing more than one element per time-step: t=%f, segment %u , dphi/h = %f \n",t.at(_Nt),l,phidot[index]*dt/h);
             }
         }
 
@@ -376,40 +415,26 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 
         //record number of fragments and quantities per fragment
         fragLength.clear();
-        fragLength = findFragments(nfrags[i],segments);
-        _numFrag = nfrags[i];
+        fragLength = findFragments(_numFrag,segments);
+		nfrags.push_back(_numFrag); 
 
         //calculate energies
-        calculateEnergies(i,pg,wg);
+        calculateEnergies(_Nt,pg,wg);
 
         //update gradient for printing
 		calculateLevelSetGradientL(d, gradPhiL);
 		calculateLevelSetGradientNL(d, gradPhiNL);
-/*//disabled so that the Ybar calculated is right for the segment it was calculated for (limited boundary). If enabled, this calculates Ybar after the boundary has been moved, potentially making it appear to be less than Yc at this point even with the segment growing. this was not an issue when the boundaries were updated per iteration.
-		//update Ybar after segments redefined
-        for (unsigned l = 0; l < segments.size(); ++l) {
-            if (segments[l]->size()==0) continue;//segments.erase(segments.begin()+l);
-            unsigned sbegin = segments[l]->begin();
-            unsigned send = segments[l]->end();
-            //clear Ybar
-            segments[l]->YbarmYc = 0.0; 
-			double segZero = calculateZero(segments[l],phiNL); 
-            double YbarmYc = 0.0; double Ycavg = 0.0;
-            double residu_Y = 0.0; double tangent_Y = 0.0;
-            double phimin = 0.0;  double phimax = 0.0;
-       		double phiminY = 0.0; double phimaxY = 0.0;
-        	calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter[i],sbegin,send,segments[l],segZero);
-		}
-*/
-        //check enforcement of constraints
+        
+		//check enforcement of constraints
         checkConstraints(gradPhiL,gradPhiNL,segments);
 
 		//print the rest of the table/graph data
-        if (printVTK != 0) if ( ( _Nt % printVTK) == 0 ) {printVtk(_Nt); cout << "*t = " << t[i] << endl;}
+        if (printVTK != 0) if ( ( _Nt % printVTK) == 0 ) {printVtk(_Nt); cout << "*t = " << t.at(_Nt) << endl;}
         printFrags(fragLength,segments.size());
         printGlobalInfo();
         printForceDisp();
 
+		if (frontExtension != 0 && _Nt == Ntim-1) break;
     }//end time-loop
 
 	vector<double> localFragLength = localFragmentLength();
@@ -425,9 +450,9 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 	}
 	double altsumfrag = 0.0;
     for (unsigned i = 0; i < altFragLength.size(); ++i) altsumfrag += altFragLength[i];
-    nfrags[Ntim-1] = fragLength.size(); 
+    nfrags.back() = fragLength.size(); 
 
-    printf("Final number of fragments: %i \nMinimum fragment length: %3.3e    avg = %f\nFinal dissipated energy: %3.3e   = local %3.3e + TLS %3.3e  (%f/%f)\n",nfrags[Ntim-1],minfrag,sumfrag*L/static_cast<double>(nfrags[Ntim-1]),dissip_energy,dissip_energy_local,dissip_energy_TLS,dissip_energy_local/dissip_energy,dissip_energy_TLS/dissip_energy);
+    printf("Final number of fragments: %i \nMinimum fragment length: %3.3e    avg = %f\nFinal dissipated energy: %3.3e   = local %3.3e + TLS %3.3e  (%f/%f)\n",nfrags.back(),minfrag,sumfrag*L/static_cast<double>(nfrags.back()),dissip_energy,dissip_energy_local,dissip_energy_TLS,dissip_energy_local/dissip_energy,dissip_energy_TLS/dissip_energy);
     double alt_dissip_energy = 0.0 + ext_energy - strain_energy - kinetic_energy; 
     printf("alt. dissipated energy: %3.3e \n",alt_dissip_energy); 
    cout << " fragment total length " << sumfrag << "     powder length = " << 2.0*L - sumfrag << endl;
@@ -537,7 +562,7 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 	assert(gradientPhiL.size() == Nnod);
 	assert(gradientPhiNL.size() == Nnod);
    
-	if (localOnly == 0 && minOpenDist == 0.0 && alpha > 0 && oneAtATime == 0) {
+	if (TLSoption == 1 && minOpenDist == 0.0 && alpha > 0 && oneAtATime == 0) {
 		for (unsigned j = 0; j < Nnod-1; ++j) {
 			if (j > 0) if (d[j] == 1.0 && d[j-1] == 1.0) continue;
 			if (j > 0) if (inTLS[j] + inTLS[j-1] == 2) continue;
@@ -551,7 +576,7 @@ void PotentialAvenger::checkConstraints(const vector<double>& gradientPhiL, cons
 	}
 
 	//for non-local: check that Ybar <= Yc
-	if (minOpenDist == 0.0) {
+	if (minOpenDist == 0.0 && frontExtension == 1) {
     for (unsigned j = 0; j < segments.size(); ++j) assert( (segments[j]->YbarmYc) <= 1.e-6);
 	}
 /*
@@ -585,7 +610,7 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 		d_quad_phi[j].clear();
 	    s[j] = 0;
 	    d[j] = 0;
-   		if ((inTLS[j] == 1 && localOnly == 0) || alpha ==0.0 ) { 	//in TLS: use non-local damage model
+   		if ((inTLS[j] == 1 && TLSoption != 0) || alpha ==0.0 ) { 	//in TLS: use non-local damage model
 	        assert(pg.size() == wg.size());
 	
 			if (inTLSnode[j]) phiNL[j] = max(phiNL[j],phiNL_1[j]);	
@@ -741,10 +766,6 @@ void PotentialAvenger::calculateStressesNL(const vector<double>& pg, const vecto
 	        }
 
             if (d[j] > d_max[j]) d_max[j] = d[j];		//update maximum damage
-
-			if (inTLSnode[j] + inTLSnode[j+1] == 1) {
-				//if (d[j] < d_max[j]) d[j] = d_max[j];
-			}
 
             if (fullCompression) {
                 //this makes compression fully in contact no matter what the damage
@@ -1035,208 +1056,255 @@ void PotentialAvenger::updateLevelSetNL(vector<Segment*>& segments, const vector
         double dphi = 0;
         unsigned nbiter = 0;
         double residu = 0;
-//cout << "int: [" << sbegin << "," << send<< "]  dmax = " << dm.dval(segments[l].phipeak) << "  phimax = " << segments[l].phipeak << "  ," << 
-//"  x= " << segments[l].xpeak << "   slope = " << segments[l].slope <<
-//endl;
+
+		if (frontExtension == 1) assert(maxIteration > 1);
 
         if (segments[l]->phipeak <= 0) continue;
         if (segments[l]->phimin >= lc) continue;
 
         double YbarmYc = 1.0;    
 		vector<double> residuV, tangentV, phimaxV, YcavgV;
-		unsigned iter_max = 20;
-		unsigned limit = iter_max;
 		unsigned count = 0;
 		double err_tol = 1.e-6;
-		double Ycavg = 0.0; 
-        while (err_crit > err_tol && nbiter < iter_max) {
-            nbiter++;
-			
-			double residu_Y = 0.0;
-			double tangent_Y = 0.0;
+		double Ycavg = 0.0;
+	
+		if (frontExtension == 0) {
+			//delayed-damage model
+			nbiter++;
+            double residu_Y = 0.0;
+            double tangent_Y = 0.0;
             double phimin = 0.0;
-			double phimax = 0.0; 
+            double phimax = 0.0;
             double phiminY = 0.0;
-			double phimaxY = 0.0;
+            double phimaxY = 0.0;
             unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
-			
-			if (status == 0) goto next;
-			if (YbarmYc < 0 && nbiter == 1) goto next;
-			if (segments[l]->phimin >= lc) goto next;
+ 
+            double c = sqrt(E/rho);
+            double tauC = lc/c;
+            double a = 4.0;
 
-            residu = residu_Y;
+            double intDx = min(phimax,lc) - max(phimin,0.0);
+            //Moreau 2014 (Dynamic)
+            double dDotBar = 1.0/tauC * (1.0 - exp( -a * max(YbarmYc/Ycavg, 0.0))) ;
+            double dDashBar = (dm.dval(phimax) - dm.dval(phimin) ) / intDx;
+            if (YbarmYc < 0) assert(dDotBar == 0);
+            dphi = dDotBar / dDashBar * dt;
 
-            err_crit = fabs(residu)/Ycavg/(dm.dval(phimax) - dm.dval(phimin)) ; //Ycavg;
-            double tangent = tangent_Y;
-//cout << "dphi = " << dphi;
-            if (fabs(tangent) <= 1.e-10) {
-                /*err_crit = 0.;*/ dphi = 0.;
-            } else {
-                dphi = - residu/tangent;
-            }
-			if (err_crit <= err_tol) dphi = 0.0;
-            if (isnan(dphi)) {
-                dphi = 0;
-                assert(1==0);                
-                //if (sm == "SQRT") assert(1==0);                
-            }
-			dphi = min(dphi, 10*h);
+             //Moes 2011 (Quasi-static), n = 1 
+//          double kBar = 1.0/tauC * intDx / ((4.0/pow(lc,2)*phimax - 2.0/pow(lc,3)*pow(phimax,2) + 4.0/(3.0*pow(lc,4))*pow(phimax,3) ) - (4.0/pow(lc,2)*phimin - 2.0/pow(lc,3)*pow(phimin,2) + 4.0/(3.0*pow(lc,4))*pow(phimin,3) ));
+//          double vn = kBar * max(YbarmYc, 0.0);// / intDx;
+//          dphi = vn * dt; 
+    
+            if (status == 0) goto next;
+            if (segments[l]->phimin >= lc) goto next;
 
-			residuV.push_back(residu);
-			tangentV.push_back(tangent);
-			phimaxV.push_back(phimax);
-			YcavgV.push_back(Ycavg);
+            assert(dDashBar > 0);
+ 
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] += dphi;//phiNL_before[j] + dphi;
-                //enforcing limit of level-set motion
-                //phi[j] = min(phi_1[j]+h,phi[j]);
             }
-			segments[l]->phipeak += dphi;
-			segments[l]->phimin += dphi;
-			checkInTLS(segments,inTLS,inTLSnode);
-        	//setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
-        } //endwhile
-		//check for YbarmYc/Ycavg = 0, i.e. when whole segment has gone above lc, Ycavg undefined, err_crit = nan, but still good.
-		if (YbarmYc/Ycavg == 0) count++;
+            segments[l]->phipeak += dphi;
+            segments[l]->phimin += dphi;
+            checkInTLS(segments,inTLS,inTLSnode);
 
-		//Bisection search to finish off convergence calculation
-		bool hasPos;
-		bool hasNeg;
-		if (nbiter >= limit) {
-			hasPos = false;
-			hasNeg = false;
-			for (unsigned j = 0; j < residuV.size(); ++j) {
-				if (residuV[j] > 0) hasPos = true;
-				if (residuV[j] < 0) hasNeg = true;
-				if (hasPos && hasNeg) break;
-			}
-        } else {
-            hasNeg = false; hasPos = false;
-        }
-		if (nbiter >= limit && hasPos && hasNeg) {
-            double residu_Y = 0.0;
-            double tangent_Y = 0.0;
-            double phimin = 0.0;
-            double phimax = 0.0;
-            double phiminY = 0.0;
-            double phimaxY = 0.0;
-            double Ycavg = 0.0;
-			while (count < iter_max) {
-				count++;
-				//find last positive
-				double rPos = 0.0;
-				double phiPos = 0.0;
-				for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] > 0) {rPos = residuV[j]; phiPos = phimaxV[j];}
-				//find last negative	
-				double rNeg = 0.0;
-				double phiNeg = 0.0;
-				for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] < 0) {rNeg = residuV[j]; phiNeg = phimaxV[j];}
-				assert(rPos > 0.0); assert(rNeg < 0.0);
-				
-				double phimaxMid = 0.5 * (phiPos + phiNeg);
-				dphi = phimaxMid - segments[l]->phipeak; 
+		} else {
+			//NR style TLS implicit solve
+			assert(frontExtension == 1 || frontExtension == 2);
+ 
+	        while (err_crit > err_tol && nbiter < maxIteration) {
+    	        nbiter++;
+			
+				double residu_Y = 0.0;
+				double tangent_Y = 0.0;
+        	    double phimin = 0.0;
+				double phimax = 0.0; 
+	            double phiminY = 0.0;
+				double phimaxY = 0.0;
+        	    unsigned status = calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
+			
+				if (status == 0) goto next;
+				if (YbarmYc < 0 && nbiter == 1) goto next;
+				if (segments[l]->phimin >= lc) goto next;
+
+  	        	residu = residu_Y;
+
+	            err_crit = fabs(residu)/Ycavg/(dm.dval(phimax) - dm.dval(phimin)) ; //Ycavg;
+    	        double tangent = tangent_Y;
+        	    
+				if (fabs(tangent) <= 1.e-10) {
+            	    dphi = 0.;
+	            } else {
+    	            dphi = - residu/tangent;
+        	    }
+				if (err_crit <= err_tol) dphi = 0.0;
+    	        if (isnan(dphi)) {
+        	        dphi = 0;
+            	    assert(1==0);                
+    	        }
+				dphi = min(dphi, 10*h);
+
+				residuV.push_back(residu);
+				tangentV.push_back(tangent);
+				phimaxV.push_back(phimax);
+				YcavgV.push_back(Ycavg);
+        	    for (unsigned j = sbegin; j <=send; ++j) {
+	                phiNL[j] += dphi;//phiNL_before[j] + dphi;
+    	            //enforcing limit of level-set motion
+        	        //phi[j] = min(phi_1[j]+h,phi[j]);
+	            }
 				segments[l]->phipeak += dphi;
 				segments[l]->phimin += dphi;
-   	         	for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
-				phimaxV.push_back(segments[l]->phipeak);
-				residuV.push_back(residu_Y);
-				YcavgV.push_back(Ycavg);
-			}
-		} //end bisection search
+				checkInTLS(segments,inTLS,inTLSnode);
+        	//setPeak(x,phiNL,segments,l); //segments[l].phipeak += dphi; 
+	        } //endwhile
+			//checkInTLS(segments,inTLS,inTLSnode);
+			//check for YbarmYc/Ycavg = 0, i.e. when whole segment has gone above lc, Ycavg undefined, err_crit = nan, but still good.
+			if (YbarmYc/Ycavg == 0) count++;
 
+		} //end frontExtension 1&2
 
-		//finish with linear interpolation
-		if (nbiter >= limit) {
-            double residu_Y = 0.0;
-            double tangent_Y = 0.0;
-            double phimin = 0.0;
-            double phimax = 0.0;
-            double phiminY = 0.0;
-            double phimaxY = 0.0;
-            double Ycavg = 0.0;
-			unsigned size = residuV.size();
-			assert(size >= 2);
-            double rPos = residuV[size-1];
-            double phiPos = phimaxV[size-1];
-            double rNeg = residuV[size-2];
-            double phiNeg = phimaxV[size-2];
+		if (frontExtension == 1) {
+			//true implicit NR
 
-			if (phiPos - phiNeg != 0) {
-				double m = (rPos - rNeg) / (phiPos - phiNeg);
-				dphi = phiNeg - rNeg/m - segments[l]->phipeak;
-                segments[l]->phipeak += dphi;
-                segments[l]->phimin += dphi;
-                for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
-				phimaxV.push_back(segments[l]->phipeak);
-				residuV.push_back(residu_Y);
-				YcavgV.push_back(Ycavg);
-				count++;
-			}
-		}
-
-
-		//crawl for zero if need be
-		if (YbarmYc/Ycavg > 1.e-6) {
-            double residu_Y = 0.0;
-            double tangent_Y = 0.0;
-            double phimin = 0.0;
-            double phimax = 0.0;
-            double phiminY = 0.0;
-            double phimaxY = 0.0;
-            double Ycavg = 0.0;	
-			double phiMax = phimaxV[0];
-			double phiMin = phimaxV[0];
-			for (unsigned iter = 0; iter < phimaxV.size(); ++iter) {
-				if (phimaxV[iter] > phiMax) phiMax = phimaxV[iter] + EPS;
-				if (phimaxV[iter] < phiMin) phiMin = phimaxV[iter] - EPS;
-			}
-			phiMax = max(phiMax,phiMin*2);
-
-			bool haveZero = false;
-			unsigned niter = 1000;
-			for (unsigned iter = 0; iter < niter; ++iter) {
-				dphi = (phiMax-phiMin)*(double)(iter)/(double)(niter)*10 + phiMin - segments[l]->phipeak;
-            	segments[l]->phipeak += dphi;
-                segments[l]->phimin += dphi;
-                for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
-                calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
-                phimaxV.push_back(segments[l]->phipeak);
-                residuV.push_back(residu_Y);
-				YcavgV.push_back(Ycavg);
-				if (residu_Y <= 0){
-					//call it here
-					haveZero = true;
-					count++;
-					break;
-				}
-			}			
-			if (haveZero == false) {
-				//if still no zero, pick the minimum value of the residual and go with that
-				double minResidu = residuV.front();
-				double setpeak = phimaxV.front();
+			//Bisection search to finish off convergence calculation
+			bool hasPos;
+			bool hasNeg;
+			if (nbiter >= maxIteration) {
+				hasPos = false;
+				hasNeg = false;
 				for (unsigned j = 0; j < residuV.size(); ++j) {
-					if (residuV[j] < minResidu) {
-						minResidu = residuV[j];
-						setpeak = phimaxV[j];
-					}
+					if (residuV[j] > 0) hasPos = true;
+					if (residuV[j] < 0) hasNeg = true;
+					if (hasPos && hasNeg) break;
 				}
-			
-				double endpeak = segments[l]->phipeak;	
-				segments[l]->phipeak += setpeak - endpeak;
-				segments[l]->phimin += setpeak - endpeak;
-				for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += setpeak - endpeak;
+	        } else {
+    	        hasNeg = false; hasPos = false;
+        	}
+			if (nbiter >= maxIteration && hasPos && hasNeg) {
+    	        double residu_Y = 0.0;
+        	    double tangent_Y = 0.0;
+            	double phimin = 0.0;
+	            double phimax = 0.0;
+    	        double phiminY = 0.0;
+        	    double phimaxY = 0.0;
+            	double Ycavg = 0.0;
+				while (count < maxIteration) {
+					count++;
+					//find last positive
+					double rPos = 0.0;
+					double phiPos = 0.0;
+					for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] > 0) {rPos = residuV[j]; phiPos = phimaxV[j];}
+					//find last negative	
+					double rNeg = 0.0;
+					double phiNeg = 0.0;
+					for (unsigned j = 0; j < residuV.size(); ++j) if (residuV[j] < 0) {rNeg = residuV[j]; phiNeg = phimaxV[j];}
+					assert(rPos > 0.0); assert(rNeg < 0.0);
+				
+					double phimaxMid = 0.5 * (phiPos + phiNeg);
+					dphi = phimaxMid - segments[l]->phipeak; 
+					segments[l]->phipeak += dphi;
+					segments[l]->phimin += dphi;
+   	         		for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
+	    	        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
+					phimaxV.push_back(segments[l]->phipeak);
+					residuV.push_back(residu_Y);
+					YcavgV.push_back(Ycavg);
+				}
+			} //end bisection search
+
+
+			//finish with linear interpolation
+			if (nbiter >= maxIteration) {
+        	    double residu_Y = 0.0;
+            	double tangent_Y = 0.0;
+	            double phimin = 0.0;
+    	        double phimax = 0.0;
+        	    double phiminY = 0.0;
+            	double phimaxY = 0.0;
+	            double Ycavg = 0.0;
+				unsigned size = residuV.size();
+				assert(size >= 2);
+            	double rPos = residuV[size-1];
+	            double phiPos = phimaxV[size-1];
+    	        double rNeg = residuV[size-2];
+        	    double phiNeg = phimaxV[size-2];
+	
+				if (phiPos - phiNeg != 0) {
+					double m = (rPos - rNeg) / (phiPos - phiNeg);
+					dphi = phiNeg - rNeg/m - segments[l]->phipeak;
+                	segments[l]->phipeak += dphi;
+	                segments[l]->phimin += dphi;
+    	            for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
+    		        calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
+					phimaxV.push_back(segments[l]->phipeak);
+					residuV.push_back(residu_Y);
+					YcavgV.push_back(Ycavg);
+					count++;
+				}
 			}
-			calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
 
 
-			assert(phimaxV.size() == residuV.size()); assert(residuV.size() == YcavgV.size()); 
-			//for (unsigned j = 0; j < residuV.size(); ++ j) cout << phimaxV[j] << " " << j << " " << residuV[j] << " " << YcavgV[j] << endl;
-		}//end crawl
-/**/
-		assert(YbarmYc/Ycavg <= 1.e-6);
-		assert(nbiter < iter_max || count > 0);
+			//crawl for zero if need be
+			if (YbarmYc/Ycavg > 1.e-6) {
+        	    double residu_Y = 0.0;
+            	double tangent_Y = 0.0;
+	            double phimin = 0.0;
+    	        double phimax = 0.0;
+        	    double phiminY = 0.0;
+            	double phimaxY = 0.0;
+	            double Ycavg = 0.0;	
+				double phiMax = phimaxV[0];
+				double phiMin = phimaxV[0];
+				for (unsigned iter = 0; iter < phimaxV.size(); ++iter) {
+					if (phimaxV[iter] > phiMax) phiMax = phimaxV[iter] + EPS;
+					if (phimaxV[iter] < phiMin) phiMin = phimaxV[iter] - EPS;
+				}
+				phiMax = max(phiMax,phiMin*2);
+	
+				bool haveZero = false;
+				unsigned niter = 1000;
+				for (unsigned iter = 0; iter < niter; ++iter) {
+					dphi = (phiMax-phiMin)*(double)(iter)/(double)(niter)*10 + phiMin - segments[l]->phipeak;
+	            	segments[l]->phipeak += dphi;
+    	            segments[l]->phimin += dphi;
+        	        for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += dphi;
+            	    calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
+                	phimaxV.push_back(segments[l]->phipeak);
+	                residuV.push_back(residu_Y);
+					YcavgV.push_back(Ycavg);
+					if (residu_Y <= 0){
+						//call it here
+						haveZero = true;
+						count++;
+						break;
+					}
+				}			
+				if (haveZero == false) {
+					//if still no zero, pick the minimum value of the residual and go with that
+					double minResidu = residuV.front();
+					double setpeak = phimaxV.front();
+					for (unsigned j = 0; j < residuV.size(); ++j) {
+						if (residuV[j] < minResidu) {
+							minResidu = residuV[j];
+							setpeak = phimaxV[j];
+						}
+					}
+			
+					double endpeak = segments[l]->phipeak;	
+					segments[l]->phipeak += setpeak - endpeak;
+					segments[l]->phimin += setpeak - endpeak;
+					for (unsigned j = sbegin; j <=send; ++j) phiNL[j] += setpeak - endpeak;
+				}
+				calculateYbar(pg,wg,Ycavg,YbarmYc,residu_Y,tangent_Y,phimin,phimax,phiminY,phimaxY,nbiter,sbegin,send,segments[l],segZero);
+
+
+				assert(phimaxV.size() == residuV.size()); assert(residuV.size() == YcavgV.size()); 
+				//for (unsigned j = 0; j < residuV.size(); ++ j) cout << phimaxV[j] << " " << j << " " << residuV[j] << " " << YcavgV[j] << endl;
+			}//end crawl
+			assert(YbarmYc/Ycavg <= 1.e-6);
+			assert(nbiter < maxIteration || count > 0);
+		} //end - if frontExtension == 1
+
         next:
             for (unsigned j = sbegin; j <=send; ++j) {
                 phiNL[j] = max(phiNL[j],phiNL_1[j]); //constraint: dphi >= 0
@@ -1466,21 +1534,25 @@ void PotentialAvenger::setPeak(const vector<double>& phiIn, vector<Segment*>& se
 		double qty = segments[index]->xpeak;
 		segments[index]->xpeak = 0;
 		segments[index]->phipeak -= slope * qty;
+        segments[index]->phipeak = max(segments[index]->phipeak, phiIn[sbegin]);
 	}
     if (segments[index]->xpeak > L) {
         double qty = segments[index]->xpeak - L;
         segments[index]->xpeak = L;
         segments[index]->phipeak -= slope * qty;
+		segments[index]->phipeak = max(segments[index]->phipeak, phiIn[send]);
     }
     if (segments[index]->xmin < 0) {
         double qty = segments[index]->xmin;
         segments[index]->xmin = 0;
         segments[index]->phimin -= slope * qty;
+		segments[index]->phimin = min(segments[index]->phimin, phiIn[sbegin]);
     }
     if (segments[index]->xmin > L) {
         double qty = segments[index]->xmin - L;
         segments[index]->xmin = L;
         segments[index]->phimin -= slope * qty;
+		segments[index]->phimin = min(segments[index]->phimin, phiIn[send]);
     }
 
     assert(segments[index]->xpeak <= L);
@@ -2114,7 +2186,7 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
     //nucleate list
     if (xlist.size() > 0) {
         vector<double> failvalueList = vector<double>(xlist.size(),failvalue);
-        nucleate(t[ts],xlist,failvalueList, newSegment, elemOrNodal);
+        nucleate(t.at(ts),xlist,failvalueList, newSegment, elemOrNodal);
     }
 	return xlist.size();
 };

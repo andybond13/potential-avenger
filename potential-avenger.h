@@ -16,7 +16,7 @@ public:
 //dyndimresttls.m
 void run(const double& E, const double& rho, const double& A, const double& L, const double& Yc, const std::vector<double>& pg, const std::vector<double>& wg, const std::vector<double>& phiIn, const std::vector<Segment*> segIn, const unsigned& nucleated, bool& vbc, const std::vector<double>& eIn, const std::vector<double>& xIn, std::vector<double>& uIn, const std::vector<double>& vIn, const std::vector<double>& YcvIn, const DamageModel& dm);
 
-PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, std::string& sm, unsigned& in13, std::string& path);
+PotentialAvenger(double& in0, double& in1, double& in2, unsigned& in3, double& in4, unsigned& in6, int& in7, double& in8, double& in9, unsigned& in10, unsigned& in11, unsigned& in12, std::string& sm, unsigned& in13, unsigned& in14, unsigned& in15, std::string& path);
 ~PotentialAvenger();
 
 
@@ -24,19 +24,20 @@ private:
 double strain_rate;
 double ts_refine;
 double end_t;
-unsigned Nelt;
-unsigned Nnod;
+unsigned Nelt, Nnod;
 double lc;
+double alpha;
 unsigned startWithLoad;
 unsigned printVTK;
-bool oneAtATime;
+std::string sm;
+int oneAtATime;
 double minOpenDist;
-double alpha;
-unsigned localOnly;
+unsigned TLSoption;
 unsigned visualizeCracks;
 unsigned fullCompression;
-std::string sm;
 unsigned elemDeath;
+unsigned frontExtension;
+unsigned maxIteration;
 
 //new variables
 std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile, _FDFile;
