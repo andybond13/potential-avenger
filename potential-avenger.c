@@ -263,7 +263,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
 	//time-integration loop
 	while (t.at(_Nt) < end_t) {	//    for (unsigned i = 1; i < Ntim; ++i){
         _Nt++;
-//cout << "t = " << t[i] << endl;
+//cout << "t = " << t.at(_Nt) << endl;
 
 		//if delay-damage model, find new dt
 		if (frontExtension == 0) {
