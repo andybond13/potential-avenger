@@ -153,7 +153,7 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     h = 1/static_cast<double>(Nelt) * L; //
     double cfl = 1./ts_refine;
     dt = cfl * h/c;//
-    unsigned Ntim = static_cast<unsigned>(Nelt*ts_refine*end_t*c)+1;
+    unsigned Ntim = static_cast<unsigned>(end_t/dt)+1;
     ec = sqrt(2 * Yc / E);
     sigc = E * ec;
 	
