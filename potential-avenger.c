@@ -813,7 +813,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 		vector<double> qtyList;
 		vector<double> deeList;
 		int nrCount = 0;
-		if (0.5 * E * e[j] * e[j] > dH(j,dm.phi(d_1[j])) + Ycv[j]) 	{
+		if (0.5 * E * e[j] * e[j] > dH(j,dm.phi(d_1[j])) + Ycv[j] && TLSoption != 2) 	{
 			if (sm == "SQRT") {
 				double factor = sqrt(2.0 * Ycv[j] / (E * e[j] * e[j]) ); 
 				dee = (1.0 - fabs(factor)) / alpha;
@@ -880,7 +880,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 		d[j] = max(dee, d_1[j]);
         s[j] = E * (1.0 - dee) * e[j];
 		assert(d[j] >= d_1[j]);
-		if (d[j] < 1.0 && d[j] == dee && nrCount != -1) assert(0.5 * E * e[j] * e[j] - dH(j,dm.phi(d[j])) <= Ycv[j] * (1 + 1.0e-6));
+		if (d[j] < 1.0 && d[j] == dee && nrCount != -1) assert(0.5 * E * e[j] * e[j] - dH(j,dm.phi(d[j])) <= Ycv[j] * (1 + 1.0e-6) || TLSoption == 2);
 		
         if (fullCompression) {
             //this makes compression fully in contact no matter what the damage
