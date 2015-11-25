@@ -445,6 +445,7 @@ residualSum = vector<double>(maxIteration,0.0);
         if (printVTK != 0) if ( ( _Nt % printVTK) == 0 ) {printVtk(_Nt); cout << "*t = " << t.at(_Nt) << endl;}
         printFrags(fragLength,segments.size());
         printGlobalInfo();
+		printResidual();
         printForceDisp();
 
 		if (frontExtension != 0 && _Nt == Ntim-1) break;
@@ -1864,7 +1865,7 @@ void PotentialAvenger::nucleate(const double t, const std::vector<double>& xnuc,
             }
 
         }
-        if (loc == -1 && xnuc[j] == 1.0) {
+        if (loc == -1 && xnuc[j] == L) {
 			loc = Nnod - 1;
 			delta = 0.0;
 		}
