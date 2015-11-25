@@ -827,9 +827,11 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 		vector<double> qtyList;
 		vector<double> deeList;
 		int nrCount = 0;
-		if (0.5 * E * e[j] * e[j] > dH(j,dm.phi(d_1[j])) + Ycv[j] && TLSoption != 2) 	{
+		double strain = e[j];
+		if (fullCompression) strain = max(0.0, strain);
+		if (0.5 * E * strain*strain > dH(j,dm.phi(d_1[j])) + Ycv[j] && TLSoption != 2) 	{
 			if (sm == "SQRT") {
-				double factor = sqrt(2.0 * Ycv[j] / (E * e[j] * e[j]) ); 
+				double factor = sqrt(2.0 * Ycv[j] / (E * strain*strain) ); 
 				dee = (1.0 - fabs(factor)) / alpha;
 
 				//strain limit for d=1 - SQRT
@@ -838,13 +840,13 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 				
 			}
 			if (sm == "LIN") {
-				double qty = (E * e[j] * e[j]) / (2.0 * Ycv[j]);
+				double qty = (E * strain*strain) / (2.0 * Ycv[j]);
 				//begin NR
 				double R = dH(j,dm.phi(dee)) - qty;
 				double err_tol = 1e-6;
 				nrCount = 0;
 				int nrLimit = 20;
-				qtyList.push_back((0.5 * E * e[j] * e[j] - dH(j,dm.phi(dee)))/ Ycv[j] -1);
+				qtyList.push_back((0.5 * E * strain*strain - dH(j,dm.phi(dee)))/ Ycv[j] -1);
 				deeList.push_back(dee);
 				while (fabs(R) > err_tol && nrCount < nrLimit) {
 					double p = dm.phi(dee)/lc;
@@ -855,7 +857,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 					if (p == 1.0) {R = 0.0; T = 1.0;}
 					dee += -(R/T);
 					dee = max(min(dee, 1.0), 0.0);
-					qtyList.push_back((0.5 * E * e[j] * e[j] - dH(j,dm.phi(dee)))/ Ycv[j] -1);
+					qtyList.push_back((0.5 * E * strain*strain - dH(j,dm.phi(dee)))/ Ycv[j] -1);
 					deeList.push_back(dee);
 					if (dee == 1.0) dee = 0.9999;
 				}
@@ -874,7 +876,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 					if (thisQty == -numeric_limits<double>::max()) dee = 0.5*deeList.back() + 0.5; 
 				}
         
-				if (0.5 * E * e[j] * e[j] - dH(j,dm.phi(dee)) > Ycv[j] * (1 + 1.0e-6)) nrCount = -1; 
+				if (0.5 * E * strain*strain - dH(j,dm.phi(dee)) > Ycv[j] * (1 + 1.0e-6)) nrCount = -1; 
 				//end NR				
 				
 				//strain limit for d=1, lambda = 0.5 - LIN
@@ -894,7 +896,7 @@ unsigned PotentialAvenger::calculateStressesL(const vector<double>& pg, const ve
 		d[j] = max(dee, d_1[j]);
         s[j] = E * (1.0 - dee) * e[j];
 		assert(d[j] >= d_1[j]);
-		if (d[j] < 1.0 && d[j] == dee && nrCount != -1) assert(0.5 * E * e[j] * e[j] - dH(j,dm.phi(d[j])) <= Ycv[j] * (1 + 1.0e-6) || TLSoption == 2);
+		if (d[j] < 1.0 && d[j] == dee && nrCount != -1) assert(0.5 * E * strain*strain - dH(j,dm.phi(d[j])) <= Ycv[j] * (1 + 1.0e-6) || TLSoption == 2);
 		
         if (fullCompression) {
             //this makes compression fully in contact no matter what the damage
@@ -926,8 +928,14 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
     vector<double> simpleY = vector<double>(Nelt,0.0);
 
     for (unsigned j = 0; j < Nelt; ++j) {
-        Y[j] = 0.5 * E * e[j] * e[j];
-        simpleY[j] = 0.5 * E * e[j] * e[j];
+		double strain = e[j];
+        double negstrain = 0.0;
+		if (fullCompression) {
+			strain = max(0.0, strain);
+			negstrain = min(0.0, e[j]);
+		}
+        Y[j] = 0.5 * E * strain * strain;
+        simpleY[j] = 0.5 * E * strain * strain;
         for (unsigned k = 0; k < d_quad_wt[j].size(); ++k) {
 			//double dloc = d_quad[j][k];
             Y[j] -= d_quad_wt[j][k] * dH(j,d_quad_phi[j][k]);
@@ -958,7 +966,8 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const vector<double>
             kinetic_energy += 0.5 * h * A * rho * 0.5 * ( v[j] * v[j] + v[j+1] * v[j+1]);
         }
         
-		energy[j] = h * A * 0.5 * E * e[j] * e[j] * (1.0 - d[j]);
+		energy[j] = h * A * 0.5 * E * strain * strain * (1.0 - d[j]) + h*A*0.5*E*negstrain*negstrain;
+assert(strain*negstrain == 0);
     }
     //ustat(i,:) *= u(1,Nnod)/ustat(i,Nnod);
     for (unsigned j = 0; j < Nelt; ++j) Ystat[j] = 0.5 * E * pow((ustat[j+1] - ustat[j])/h,2);
@@ -1751,8 +1760,10 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
                	
 			//interpolate between begin and end
 			double philoc = pg[k] * phiB + (1.0 - pg[k]) * phiE;
-			residu_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,philoc) - Ycv[j]) * dm.dp(philoc);
-          	tangent_Y += weight * wg[k] * (0.5 * E * e[j] * e[j] - dH(j,philoc) - Ycv[j]) * dm.dpp(philoc)
+			double strain = e[j];
+			if (fullCompression) strain = max(strain, 0.0);
+			residu_Y += weight * wg[k] * (0.5 * E * strain * strain - dH(j,philoc) - Ycv[j]) * dm.dp(philoc);
+          	tangent_Y += weight * wg[k] * (0.5 * E * strain * strain - dH(j,philoc) - Ycv[j]) * dm.dpp(philoc)
 	        			 - weight * wg[k] * d2H(j,philoc) * pow(dm.dp(philoc),2);
         
            	loop_residu++;
@@ -1783,18 +1794,28 @@ unsigned PotentialAvenger::calculateYbar(const vector<double>& pg, const vector<
     if (phimin == phimax) return 0;
 
     phimaxY = 0.0;
-    if (iphimax == Nnod-1) phimaxY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimax, phimax); //1/2*s(i,Nelt)*e(i,Nelt);
-    else {
-        phimaxY = 0.5*E*pow(e[iphimax],2);// 1/2*s(i,iphimax)*e(i,iphimax);
+    if (iphimax == Nnod-1) {
+		double strain = e[Nelt-1];
+		if (fullCompression) strain = max(0.0, strain);
+		phimaxY = 0.5*E*strain*strain - dH(iphimax, phimax); //1/2*s(i,Nelt)*e(i,Nelt);
+	} else {
+		double strain = e[iphimax];
+		if (fullCompression) strain = max(0.0, strain);
+        phimaxY = 0.5*E*strain*strain;// 1/2*s(i,iphimax)*e(i,iphimax);
         for (unsigned k = 0; k < d_quad_wt[iphimax].size(); ++k) {
 	        phimaxY -= d_quad_wt[iphimax][k] * dH(iphimax,d_quad_phi[iphimax][k]);
         }
     }
 
     phiminY = 0.0;
-    if (iphimin == Nnod-1) phiminY = 0.5*E*pow(e[Nelt-1],2) - dH(iphimin, phimin); //1/2*s(i,Nelt)*e(i,Nelt);
-    else {
-		phiminY = 0.5*E*pow(e[iphimin],2);// 1/2*s(i,iphimax)*e(i,iphimax);
+    if (iphimin == Nnod-1) {
+		double strain = e[Nelt-1];
+		if (fullCompression) strain = max(0.0, strain);
+		phiminY = 0.5*E*strain*strain - dH(iphimin, phimin); //1/2*s(i,Nelt)*e(i,Nelt);
+    } else {
+		double strain = e[iphimin];
+		if (fullCompression) strain = max(0.0, strain);
+		phiminY = 0.5*E*strain*strain;// 1/2*s(i,iphimax)*e(i,iphimax);
         for (unsigned k = 0; k < d_quad_wt[iphimin].size(); ++k) {
             phiminY -= d_quad_wt[iphimin][k] * dH(iphimin,d_quad_phi[iphimin][k]);
         }
