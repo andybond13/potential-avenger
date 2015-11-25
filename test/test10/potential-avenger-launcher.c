@@ -14,6 +14,7 @@ void writeDisplacements (const vector<double>& uIn, const double& L) {
     pFileP = fopen(dispFil.c_str(), "w");
     fprintf( pFileP, "#raw displacements normalized by length\n");
     for (unsigned j = 0; j < uIn.size(); ++j) fprintf(pFileP, "%0.8g\n",uIn.at(j)/L);
+	fclose(pFileP);
 	return;
 }
 
