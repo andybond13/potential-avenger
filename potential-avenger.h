@@ -40,7 +40,7 @@ unsigned frontExtension;
 unsigned maxIteration;
 
 //new variables
-std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile, _FDFile;
+std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile, _FDFile, _ResidualFile, _ResidualFile2;
 double E, A, rho, c, L, h, dt, Yc, sigc, ec;
 unsigned _numFrag, _Nt, _DtPrint;
 double strain_energy, dissip_energy, dissip_energy_TLS, dissip_energy_local, kinetic_energy, max_energy, ext_energy, tot_energy;
@@ -109,6 +109,7 @@ void plotForceDisp ();
 void plotFrags ();
 void plotHisto ();
 void plotSTheta ();
+void plotResidual ();
 
 void display ( const unsigned timStepNumElas, const unsigned timStepNumFrac );
 
@@ -121,6 +122,7 @@ void printGlobalInfo () const;
 void printForceDisp () const;
 void printFrags (const std::vector<double>& fragLength, const unsigned nSegs);
 void printSTheta ();
+void printResidual ();
 void printHisto (const std::vector<double>& fragLength);
 void printClean() const;
 void fragmentStats(const std::vector<double>& fragLength);
@@ -129,6 +131,9 @@ void killSegments(std::vector<Segment*>& seg);
 void setPeakAll(const std::vector<double>& phiin, std::vector<Segment*>& segments);
 double calculateZero(Segment* segment, const std::vector<double>& phiIN);
 double calculateTotal(Segment* segment, const std::vector<double>& phiIN);
+std::vector<double> residualVec;
+std::vector<double> residualMax;
+std::vector<double> residualSum;
 };
 
 
