@@ -131,6 +131,8 @@ void killSegments(std::vector<Segment*>& seg);
 void setPeakAll(const std::vector<double>& phiin, std::vector<Segment*>& segments);
 double calculateZero(Segment* segment, const std::vector<double>& phiIN);
 double calculateTotal(Segment* segment, const std::vector<double>& phiIN);
+
+void mergeIndices(std::vector<int>& a, std::vector<int>& b);
 std::vector<double> residualVec;
 std::vector<double> residualMax;
 std::vector<double> residualSum;

@@ -1352,7 +1352,6 @@ residualSum.assign(maxIteration,0.0);
 }
 
 void PotentialAvenger::setPeakAll(const vector<double>&phiIn, vector<Segment*>& segments) {
-    sort(segments.begin(),segments.end(),SegmentComparer());
 	for (unsigned l = 0; l < segments.size(); ++l) 	setPeak(phiIn,segments,l); //segments[l].phipeak += dphi;
 	return;
 }
@@ -2054,7 +2053,6 @@ vector<double> PotentialAvenger::fragmentLength(const vector<Segment*>& segments
 		if (phiL[j] > lc) assert(1 == 0); //this has not been implemented yet!
 	}
 
-	sort(segmentList.begin(), segmentList.end(), SegmentComparer());
 
 	for (unsigned j = 0; j < segmentList.size(); ++j) {
 		double segTotal = calculateTotal(segmentList[j], phiNL);
@@ -2236,6 +2234,19 @@ unsigned PotentialAvenger::checkFailureCriteria(const unsigned ts, std::vector<d
 	return xlist.size();
 };
 
+void PotentialAvenger::mergeIndices(vector<int>& a, vector<int>& b) {
+	//from https://stackoverflow.com/questions/5958169/how-to-merge-two-sorted-arrays-into-a-sorted-array
+	vector<int> answer (a.size()+b.size());
+	int i = a.size() - 1; int j = b.size() - 1; int k = answer.size();
+
+    while (k > 0)
+        answer[--k] = 
+            (j < 0 || (i >= 0 && a[i] >= b[j])) ? a[i--] : b[j--];
+
+	a = answer;
+	b.resize(0);	
+	return;
+}
 
 void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vector<Segment*>& newSegment) {
     //produce:
@@ -2253,7 +2264,7 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
     vector<double> value_max;
     vector<double> slope;
     vector<double> YbarmYc;
-    sort(newSegment.begin(), newSegment.end());
+    sort(newSegment.begin(), newSegment.end(),SegmentComparer());
    
     assert(x.size() >= 1);
 
@@ -2309,23 +2320,21 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
   //      phinew[i] = max(phinew[i],phiV[i]);
     }
 
+	//sort segments
+    sort(newSegment.begin(), newSegment.end(),SegmentComparer());
+
 	//make sure segments don't overlap
-	for (unsigned i = 0; i < newSegment.size(); ++i) {
+	//cilk
+	for (unsigned i = 0; i < newSegment.size()-1; ++i) {
 		if (newSegment[i]->size() == 0) continue;
-		for (unsigned j = i + 1; j < newSegment.size(); ++j) {
-			if (newSegment[i]->size() == 0) continue;
-			if (newSegment[j]->size() == 0) continue;
-			int i1, i2, j1, j2;
-			newSegment[i]->beginEnd(i1,i2);
-			newSegment[j]->beginEnd(j1,j2);
-			int L1 = abs(i1 - i2);
-			int L2 = abs(j1 - j2);
-			int dist = max(i1,i2,j1,j2) - min(i1,i2,j1,j2);
+			
+			unsigned j = i + 1;
+			if (newSegment[i]->size() == 0 || newSegment[j]->size() == 0) continue;
 			unsigned ii = (i - (i % 2))/2;
 			unsigned jj = (j - (j % 2))/2;
 			//if overlap, fold segments together
 			//copy indices from shorter segment to taller segment
-			if (dist <= L1 + L2) {
+			if (static_cast<int>(newSegment[i]->end()) > newSegment[j]->begin()) {
 				unsigned more, less;
 				if (newSegment[i]->slope == newSegment[j]->slope) {
 					if (value_max[ii] > value_max[jj]) {
@@ -2339,14 +2348,12 @@ void PotentialAvenger::analyzeDamage(vector<double>& phiV, const double h, vecto
 					more = j; less = i;	
 				} else if (newSegment[j]->size() == 1) {
 					more = i; less = j;	
-				} else assert(1 == 0);	
-				while(!newSegment[less]->indices.empty()) {
-					unsigned index = newSegment[less]->indices.back();
-					newSegment[less]->indices.pop_back();
-					newSegment[more]->indices.push_back(index);
-				}	
+				} else {
+					more = 0; less = 0; 
+					assert(1 == 0);	
+				}
+				mergeIndices(newSegment[more]->indices,newSegment[less]->indices);
 			}
-		}
 
 	}//end overlap check
 
