@@ -1,9 +1,9 @@
 #makefile
-LIB = -L/sw/opt/boost-1_55/lib/ -lboost_random 
 COMPILER = g++-5
-COMPILER_FLAGS = -g -O3 -Wall -std=c++11
+COMPILER_FLAGS = -g -O3 -Wall -std=c++11 -fopenmp -fcilkplus  -DCILKPLUS_GCC=1 #-ftree-parallelize-loops=64
+LIB = -L/sw/opt/boost-1_55/lib/ -lboost_random -lcilkrts #-fopenacc 
 SOURCES = $(wildcard *.c) 
-INC = -I . -I/sw/opt/boost-1_55/include/
+INC = -I . -I/sw/opt/boost-1_55/include/  #-fopenacc
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = potential-avenger.exe
 

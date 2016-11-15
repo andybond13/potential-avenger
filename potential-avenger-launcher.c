@@ -62,10 +62,13 @@ int main(int argc, const char* argv[]) {
 	double L = 1.0;
 	double Yc = 8.1969e-4;
 	vector<double> pg;
-	pg.push_back((1-sqrt(3)/3)/2); pg.push_back((1+sqrt(3)/3)/2); 
+	pg.push_back(0.5 - sqrt(1./12.)); pg.push_back(0.5 + sqrt(1./12.));
+//	pg.push_back(0.0); pg.push_back(1.0); pg.push_back(0.5);
+//	pg.push_back(0.0); pg.push_back(1.0);
 	vector<double> wg;
-	wg.push_back(0.5); wg.push_back(0.5); 
-	vector<double> phiIn = vector<double>(Nnod, -1.0*L);
+//	wg.push_back(1./6.); wg.push_back(1./6.); wg.push_back(2./3.); 
+	wg.push_back(0.5); wg.push_back(0.5);
+	vector<double> phiIn = vector<double>(Nnod, 0.0);
 	bool vbc = true;
 
 	double h = 1.0/static_cast<double>(Nelt) * L;
@@ -74,7 +77,25 @@ int main(int argc, const char* argv[]) {
 	vector<double> xIn = vector<double>(Nnod,0);
 	vector<double> uIn = vector<double>(Nnod,0);
 	vector<double> vIn = vector<double>(Nnod,0);
-	vector<double> YcvIn = vector<double>(Nelt, Yc);
+	vector<double> YcvIn = vector<double>(Nnod, Yc);
+/*
+YcvIn.at(Nelt/2) = Yc/2.0;
+*/
+/*
+YcvIn.at(Nelt/7) = Yc/2.0;
+YcvIn.at(3*Nelt/7) = Yc/2.0;
+YcvIn.at(5*Nelt/7) = Yc/2.0;
+
+*/
+/*
+	double num = 6; //number of weaknesses
+	double amp = 0.1; // amplitude of variation
+	const double PI = atan2(0, -1);
+    for (unsigned i = 0; i < YcvIn.size(); i++){
+		double X = static_cast<double>(i) * h + 0.5*h;
+		YcvIn[i] = Yc * (1 + amp * cos(X / L * num * (2.0*PI)));
+	}
+*/
 
 	double qty = 0.999 * sqrt(2.0 * min(YcvIn) / E) * static_cast<double>(startWithLoad);
 	double e0 = qty;
@@ -100,14 +121,17 @@ int main(int argc, const char* argv[]) {
 		xIn[j] = static_cast<double>(j) * h;
 		uIn[j] = xIn[j] * e0;
 		vIn[j] = static_cast<double>(vbc) * strain_rate * xIn[j];
-//		phiIn[j] = 2.0 * h - xIn[j];
+//		phiIn[j] = max(0.0, 2.0 * h - xIn[j]);
 	}	
 	vIn[Nnod-1] = strain_rate*L;
 
-	vector<Segment*> segIn;
-//	Segment* seg1 = new Segment(xIn[0], phiIn[0], -1);
-//	seg1->indices.push_back(-1);
-//	segIn.push_back(seg1);
+	vector<Segment*> segIn; /*
+	Segment* seg1 = new Segment(xIn[0], phiIn[0], -1);
+	seg1->indices.push_back(0);
+	for (unsigned j = 1; j < Nnod; ++j) if (phiIn[j-1] > 0) seg1->indices.push_back(j);
+	segIn.push_back(seg1);
+	unsigned nucleated = 1;*/
+//YcvIn[0] *= 0.1;
 	unsigned nucleated = 0;
 
     pa.run(E, rho, A, L, Yc, pg, wg, phiIn, segIn, nucleated, vbc, eIn, xIn, uIn, vIn, YcvIn, dm);

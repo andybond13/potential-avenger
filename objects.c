@@ -25,6 +25,7 @@ double Segment::length() {
 }
 
 int Segment::begin() {
+//	if (!is_sorted(indices.begin(),indices.end()))    sort(indices.begin(),indices.end());
     if (indices.size() == 0) return -1;
     return indices[0];
 }
@@ -40,27 +41,32 @@ int Segment::begin() const{
 }
 
 unsigned Segment::second() {
+	if (!is_sorted(indices.begin(),indices.end()))     sort(indices.begin(),indices.end());
     assert(indices.size() >= 2);
     return indices[1];
 }
 
 unsigned Segment::end() {
+//	if (!is_sorted(indices.begin(),indices.end()))    sort(indices.begin(),indices.end());
     return indices.back();
 }
 
 unsigned Segment::penult() {
+	if (!is_sorted(indices.begin(),indices.end()))     sort(indices.begin(),indices.end());
     assert(indices.size() >= 2);
     return indices[indices.size()-2];
 }
 
 
 void Segment::beginEnd(int& min, int& max) {
+//	if (!is_sorted(indices.begin(),indices.end()))     sort(indices.begin(),indices.end());
 	min = indices[0];
 	max = indices.back();
 	return;
 }
 
 void Segment::beginEnd(unsigned& min, unsigned& max) {
+//	if (!is_sorted(indices.begin(),indices.end()))     sort(indices.begin(),indices.end());
 	min = indices[0];
 	max = indices.back();
 	return;
