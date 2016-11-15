@@ -229,7 +229,7 @@ residualSum = vector<double>(maxIteration,0.0);
 
     _numFrag = 0;
     vector<Segment*> segments;
-	for (unsigned j = 0; j < segIn.size(); ++j) segments.push_back(segIn.at(j));
+	if (nucleated > 0) for (unsigned j = 0; j < segIn.size(); ++j) segments.push_back(segIn.at(j));
 
     m.assign(Nnod,rho*h*A);
     m[0] = m[0]/2; m[Nnod-1] = m[Nnod-1]/2;
