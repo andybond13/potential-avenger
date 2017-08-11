@@ -44,6 +44,7 @@ std::string _path, _FragFile, _EnrgFile, _SThetaFile, _HistoFile, _FDFile, _Resi
 double E, A, rho, c, L, h, dt, Yc, sigc, ec;
 unsigned _numFrag, _Nt, _DtPrint;
 double strain_energy, dissip_energy, dissip_energy_TLS, dissip_energy_local, kinetic_energy, max_energy, ext_energy, tot_energy;
+double test_dissip_energy, test_dissip_energy_TLS;
 double _fMean, _fMed, _fMax, _fMin, _fStDev, _fRange, _fSkew, _fExKurtosis, _fAltMin;
 std::vector<double> x, t, xe, d, u, v, a, s, e, phi, Y, Ycv, energy, m, u_1, v_1, a_1, phi_1, Ybar, simpleY, Ycbar, sE, dE, dE_1;
 std::vector<double> uGL, uGR, uGL_1, uGR_1, vGL, vGR, vGL_1, vGR_1, aGL, aGR, aGL_1, aGR_1, eL, eR, dEL, dEL_1, dER_1, dER, sEL, sER; //xfem enrichment variables 

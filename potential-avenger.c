@@ -181,8 +181,10 @@ void PotentialAvenger::run(const double& Ein, const double& rhoIn, const double&
     strain_energy = 0.0;
     kinetic_energy = 0.0;
     dissip_energy = 0.0;
+    test_dissip_energy = 0.0;
     dissip_energy_local = 0.0;
     dissip_energy_TLS = 0.0;
+    test_dissip_energy_TLS = 0.0;
     ext_energy = 0.0;
     tot_energy = 0.0;
 	XFEM = true;
@@ -514,6 +516,7 @@ for (unsigned i = 0; i < Nelt; ++i) {
     printf("Final number of fragments: %i \nMinimum fragment length: %3.3e    avg = %f\nFinal dissipated energy: %3.3e   = local %3.3e + TLS %3.3e  (%f/%f)\n",nfrags.back(),minfrag,sumfrag*L/static_cast<double>(nfrags.back()),dissip_energy,dissip_energy_local,dissip_energy_TLS,dissip_energy_local/dissip_energy,dissip_energy_TLS/dissip_energy);
     double alt_dissip_energy = 0.0 + ext_energy - strain_energy - kinetic_energy; 
     printf("alt. dissipated energy: %3.3e \n",alt_dissip_energy); 
+    printf("alt. dissipated energy: %3.3e \n",test_dissip_energy); 
    cout << " fragment total length " << sumfrag << "     powder length = " << 2.0*L - sumfrag << endl;
 
     //print histogram
@@ -696,24 +699,30 @@ double PotentialAvenger::nodalStrain(const unsigned&i ) {
 	
 void PotentialAvenger::calculateEnergies(const unsigned& i, const std::vector<double>& pg, const std::vector<double>& wg) {
     dissip_energy = 0.0;
+    test_dissip_energy = 0.0;
     kinetic_energy = 0.0;
 	double KE = 0.0;
 	double DETLS = dissip_energy_TLS;
+	double test_DETLS = test_dissip_energy_TLS;
 	double DEL = dissip_energy_local;
-
     simpleY = vector<double>(Nelt,0.0);
     vector<double> simpleYL = vector<double>(Nelt,0.0);
     vector<double> simpleYR = vector<double>(Nelt,0.0);
+    vector<double> YL = vector<double>(Nelt,0.0);
+    vector<double> YR = vector<double>(Nelt,0.0);
 //#pragma omp parallel for reduction(+:DETLS,DEL,KE)//OMP#7
     for (unsigned j = 0; j < Nelt; ++j) {
 
 		simpleY[j] = 0.5*E*e[j]*e[j];
+		Y[j] = 0.5*E*e[j]*e[j];
 		if (split[j] != -1) {
 			simpleYL[j] = 0.5*E*eL[j]*eL[j];
 			simpleYR[j] = 0.5*E*eR[j]*eR[j];
 			simpleY[j] = 0.5*E*(split[j]*eL[j]*eL[j] + (1.0-split[j])*eR[j]*eR[j]);
+			YL[j] = 0.5*E*eL[j]*eL[j];
+			YR[j] = 0.5*E*eR[j]*eR[j];
+			Y[j] = 0.5*E*(split[j]*eL[j]*eL[j] + (1.0-split[j])*eR[j]*eR[j]);
 		}
-		Y[j] = 0.5*E*e[j]*e[j];
 
 		dE[j] = 0.0;
 		if (split[j] != -1) {
@@ -732,6 +741,8 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const std::vector<do
 				double philocalR = phi[j+1] * (1.0-pg[q]) + (h+phi[j+1]) * pg[q];
 				dEL[j] += dm.dval(philocalL) * wg[q];
 				dER[j] += dm.dval(philocalR) * wg[q];
+			    YL[j] -= dH(Yclocal, dm.dval(philocalL)) * wg[q];
+			    YR[j] -= dH(Yclocal, dm.dval(philocalR)) * wg[q];
 			}
 
 		}
@@ -754,10 +765,13 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const std::vector<do
  		if (split[j] == -1) {
 			if (inTLSnode[j]+inTLSnode[j+1] == 0) DEL += h * A * simpleY[j] * (dE[j] - dE_1[j]); //global dissipation = int: Y dd/dt dV
 	        else DETLS += h * A * simpleY[j] * (dE[j] - dE_1[j]); //global dissipation = int: Y dd/dt dV
+	        test_DETLS += h * A * Y[j] * (dE[j] - dE_1[j]); //global dissipation = int: Y dd/dt dV
 			energy[j] = h * A * 0.5 * E * e[j] * e[j] * (1.0 - dE[j]);
 		} else {
 			if (inTLSnode[j]+inTLSnode[j+1] == 0) DEL += h * A * simpleY[j] * (dE[j] - dE_1[j]); //global dissipation = int: Y dd/dt dV
         	else DETLS += h * A * (split[j] * simpleYL[j] * (dEL[j] - dEL_1[j]) + (1.0 - split[j])*simpleYR[j]*(dER[j]-dER_1[j])); //global dissipation = int: Y dd/dt dV
+			if (inTLSnode[j]+inTLSnode[j+1] == 0) test_DETLS += h * A * Y[j] * (dE[j] - dE_1[j]); //global dissipation = int: Y dd/dt dV
+        	else test_DETLS += h * A * (split[j] * YL[j] * (dEL[j] - dEL_1[j]) + (1.0 - split[j])*YR[j]*(dER[j]-dER_1[j])); //global dissipation = int: Y dd/dt dV
 			energy[j] = h * A * 0.5 * E * (split[j] * eL[j] * eL[j] * (1.0 - dEL[j]) + (1.0 - split[j]) * eR[j] * eR[j] * (1.0 - dER[j]));
 		}
         KE += 0.5 * h * A * rho * 0.5 *(v[j]*v[j] + v[j+1] * v[j+1]);
@@ -766,9 +780,12 @@ void PotentialAvenger::calculateEnergies(const unsigned& i, const std::vector<do
 	
 	kinetic_energy = KE;
 	dissip_energy_TLS = DETLS;
+	test_dissip_energy_TLS = test_DETLS;
 	dissip_energy_local = DEL;
     //ustat(i,:) *= u(1,Nnod)/ustat(i,Nnod);
 	dissip_energy = dissip_energy_local + dissip_energy_TLS;
+	test_dissip_energy = test_dissip_energy_TLS;
+
 
     strain_energy = sum (energy);
     if (i > 0) ext_energy += (a.back() * m.back() + s.back() * A) * v.back() * dt;
@@ -1682,7 +1699,7 @@ void PotentialAvenger::plotEnergies () {
     fprintf( pFile, " -- MH [DCML] (2010)\n" );
     fprintf( pFile, "# Total energies for the system\n" );
     fprintf( pFile, "#       time        Wspr        Wdis        Wext");
-    fprintf( pFile, "        Wkin   0.01*Wmax        Wsum     WdisLoc     WdisTLS" );
+    fprintf( pFile, "        Wkin   0.01*Wmax        Wsum     WdisLoc     WdisTLS    testWdis" );
     for (unsigned i = 1; i <= 100; ++i) fprintf( pFile, "   Segment %u", i); 
     fprintf( pFile, "\n");
     fclose( pFile );
@@ -2107,6 +2124,7 @@ void PotentialAvenger::printGlobalInfo () const {
 		fprintf( pFile, "%12.3e", tot_energy );
 		fprintf( pFile, "%12.3e", dissip_energy_local );
 		fprintf( pFile, "%12.3e", dissip_energy_TLS );
+		fprintf( pFile, "%12.3e", test_dissip_energy );
 //		for (unsigned i = 0; i < phidot.size(); ++i) fprintf( pFile, "%12.3e", phidot.at(i)/sqrt(E/rho)  );
         fprintf( pFile, "\n" );
 	fclose( pFile );
